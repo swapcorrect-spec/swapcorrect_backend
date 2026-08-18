@@ -285,6 +285,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         .AsNoTracking()
                         .Where(li => validTopUserIds.Contains(li.UserId))
                         .Where(li => li.ReviewStage == ListingReiviewStage.Approved.ToString())
+                        .Where(li => string.IsNullOrEmpty(userId) || li.UserId != userId)
                         .OrderByDescending(li => li.Created)
                         .Select(u => new ListedItemResp
                         {
@@ -321,6 +322,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         candidateItems = await _listingItemRepo.GetQueryable()
                             .AsNoTracking()
                             .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString())
+                            .Where(u => string.IsNullOrEmpty(userId) || u.UserId != userId)
                             .OrderByDescending(u => u.Created)
                             .Select(u => new ListedItemResp
                             {
@@ -395,16 +397,12 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                             .Select(n => n.Trim().ToLower())
                             .ToList();
 
-                        // Find approved listings that match any of the wanted terms
-                        candidateItems = await _listingItemRepo
+                        // Fetch approved items not owned by the user server-side, then match in-memory
+                        // (EF Core cannot translate local-list Any() with string pattern matching to SQL)
+                        var approvedItems = await _listingItemRepo
                             .GetQueryable()
                             .AsNoTracking()
-                            .Where(li => li.ReviewStage == ListingReiviewStage.Approved.ToString() &&
-                                loweredWanted.Any(w =>
-                                    EF.Functions.Like(li.ItemName.ToLower(), $"%{w}%") ||
-                                    EF.Functions.Like(li.ItemDescription.ToLower(), $"%{w}%") ||
-                                    EF.Functions.Like(li.Category.CategoryName.ToLower(), $"%{w}%")
-                                ))
+                            .Where(li => li.ReviewStage == ListingReiviewStage.Approved.ToString() && li.UserId != userId)
                             .OrderByDescending(u => u.Created)
                             .Select(u => new ListedItemResp
                             {
@@ -428,26 +426,34 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                                     Url = d.Url,
                                     MediaType = d.MediaType,
                                 }).ToList(),
-                                IsFavItem = !string.IsNullOrWhiteSpace(userId) && u.favListItems.Any(d => d.UserId == userId),
+                                IsFavItem = u.favListItems.Any(d => d.UserId == userId),
                                 IsFlagged = u.IsFlagged,
                                 SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                             })
-                            .Take(limit)
                             .ToListAsync();
 
-                        // if nothing found, fallback below
+                        candidateItems = approvedItems
+                            .Where(li => loweredWanted.Any(w =>
+                                (li.ItemName ?? "").ToLower().Contains(w) ||
+                                (li.ItemDescription ?? "").ToLower().Contains(w) ||
+                                (li.CategoryName ?? "").ToLower().Contains(w)))
+                            .Take(limit)
+                            .ToList();
+
+                        // if nothing matched by preference, fall back to latest items from the fetched set
                         if (candidateItems == null || candidateItems.Count == 0)
-                            candidateItems = null;
+                            candidateItems = approvedItems.Take(limit).ToList();
                     }
                 }
 
-                // Fallback: get latest approved listings if no user preferences or no match
+                // Fallback: get latest approved listings if no userId or no wanted-item preferences found
                 if (candidateItems == null || candidateItems.Count == 0)
                 {
                     candidateItems = await _listingItemRepo
                         .GetQueryable()
                         .AsNoTracking()
-                        .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString())
+                        .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString() &&
+                                    (string.IsNullOrEmpty(userId) || u.UserId != userId))
                         .OrderByDescending(u => u.Created)
                         .Select(u => new ListedItemResp
                         {
@@ -505,7 +511,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     .GetQueryable()
                     .AsNoTracking()
                     .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString() &&
-                                u.Category.CategoryName.ToLower() == "electronics")
+                                u.Category.CategoryName.ToLower() == "electronics" &&
+                                (string.IsNullOrEmpty(userId) || u.UserId != userId))
                     .OrderByDescending(u => u.Created)
                     .Select(u => new ListedItemResp
                     {
