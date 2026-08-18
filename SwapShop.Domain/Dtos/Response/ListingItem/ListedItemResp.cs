@@ -19,6 +19,7 @@ namespace SwapShop.Domain.Dtos.Response.ListingItem
         public double EstimatedAmount { get; set; }
         public string ItemDescription { get; set; }
         public bool IsFavItem { get; set; }
+        public bool IsFlagged { get; set; }
         public string ReviewStage { get; set; }
         public string CategoryName { get; set; }
         public string FullName { get; set; } = string.Empty;

@@ -22,10 +22,14 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             _userQueryHelper = new UserQueryHelper(context);
 
         }
-        public async Task<PaginatedResult<RecentActivityDto>> GetRecentActivitiesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken)
+        public async Task<PaginatedResult<RecentActivityDto>> GetRecentActivitiesAsync(int pageNumber, int pageSize, string? userId, CancellationToken cancellationToken)
         {
-            var query = _context.UserActivitylogs
-                .OrderByDescending(a => a.Created);
+            var query = _context.UserActivitylogs.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(userId))
+                query = query.Where(a => a.UserId == userId);
+
+            query = query.OrderByDescending(a => a.Created);
 
             var totalCount = await query.CountAsync(cancellationToken);
             var activities = await query
@@ -52,7 +56,6 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
         {
             var (currentStart, prevStart, prevEnd) = DateRangeHelper.GetDateRanges(filter);
             var now = DateTime.UtcNow;
-            int totalUsers = await _context.Users.CountAsync();
 
             // ----------------------------- ACTIVE USERS -----------------------------
             var activeUsersThis = await _context.Users
@@ -144,8 +147,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 .Distinct()
                 .ToListAsync();
 
+            int currentPeriodUsers = await _context.Users.CountAsync(u => u.Created >= currentStart);
             int currentSwappers = currentSwapperIds.Count;
-            int currentVisitors = totalUsers - currentSwappers;
+            int currentVisitors = Math.Max(0, currentPeriodUsers - currentSwappers);
 
             int prevSwappers = 0;
             int prevVisitors = 0;
@@ -158,8 +162,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     .Distinct()
                     .ToListAsync();
 
+                int prevPeriodUsers = await _context.Users.CountAsync(u => u.Created >= prevStart && u.Created < prevEnd);
                 prevSwappers = prevSwapperIds.Count;
-                prevVisitors = totalUsers - prevSwappers;
+                prevVisitors = Math.Max(0, prevPeriodUsers - prevSwappers);
             }
 
             double swapperChange = prevSwappers == 0 ? 100 : ((double)(currentSwappers - prevSwappers) / prevSwappers) * 100;
@@ -190,32 +195,66 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 Visitor = visitor
             };
         }
-        public async Task<AdvancedAnalyticsDto> GetAdvancedAnalyticsAsync()
+        public async Task<AdvancedAnalyticsDto> GetAdvancedAnalyticsAsync(AnalyticsMetricFilter metricFilter, PeriodicFilter periodicFilter)
         {
-            var totalUsers = await _context.Users.CountAsync();
-            var activeUsers = await _context.Users.CountAsync(u => u.EmailConfirmed);
+            var (currentStart, _, _) = DateRangeHelper.GetDateRanges(periodicFilter);
 
-            var totalListings = await _context.ListingItems.CountAsync();
-            var approvedListings = await _context.ListingItems.CountAsync(l => l.ReviewStage == ListingReiviewStage.Approved.ToString());
+            var totalUsers = await _context.Users.CountAsync(u => u.Created >= currentStart);
+            var totalListings = await _context.ListingItems.CountAsync(l => l.Created >= currentStart);
 
-            var activeSwaps = await _context.ListingItems
-                .CountAsync(l => l.SwapListStatus == SwapListingStatus.Negotiation.ToString() || l.SwapListStatus == SwapListingStatus.Published.ToString());
+            var metrics = new List<AnalyticsMetricDto>();
 
-            var completedSwaps = await _context.ListingItems
-                .CountAsync(l => l.SwapListStatus == SwapListingStatus.Swapped.ToString());
-
-            // Calculate percentages relative to totals
-            var metrics = new List<AnalyticsMetricDto>
+            if (metricFilter == AnalyticsMetricFilter.All || metricFilter == AnalyticsMetricFilter.ActiveUsers)
             {
-                new() { Name = "Active Users", Percentage = totalUsers == 0 ? 0 : (double)activeUsers / totalUsers * 100 },
-                new() { Name = "Approved Listings", Percentage = totalListings == 0 ? 0 : (double)approvedListings / totalListings * 100 },
-                new() { Name = "Active Swaps", Percentage = totalListings == 0 ? 0 : (double)activeSwaps / totalListings * 100 },
-                new() { Name = "Completed Swaps", Percentage = totalListings == 0 ? 0 : (double)completedSwaps / totalListings * 100 },
-                new() { Name = "Total Listings", Percentage = 100 } // Always 100% baseline
-            };
+                var count = await _context.Users.CountAsync(u => u.EmailConfirmed && u.Created >= currentStart);
+                metrics.Add(new AnalyticsMetricDto
+                {
+                    Name = "Active Users",
+                    Count = count,
+                    Percentage = totalUsers == 0 ? 0 : Math.Round((double)count / totalUsers * 100, 2)
+                });
+            }
 
-            // Monthly breakdown for bar chart (Jan–Dec)
+            if (metricFilter == AnalyticsMetricFilter.All || metricFilter == AnalyticsMetricFilter.ApprovedListings)
+            {
+                var count = await _context.ListingItems.CountAsync(l => l.ReviewStage == ListingReiviewStage.Approved.ToString() && l.Created >= currentStart);
+                metrics.Add(new AnalyticsMetricDto
+                {
+                    Name = "Approved Listings",
+                    Count = count,
+                    Percentage = totalListings == 0 ? 0 : Math.Round((double)count / totalListings * 100, 2)
+                });
+            }
+
+            if (metricFilter == AnalyticsMetricFilter.All || metricFilter == AnalyticsMetricFilter.ActiveSwaps)
+            {
+                var count = await _context.ListingItems.CountAsync(l =>
+                    (l.SwapListStatus == SwapListingStatus.Negotiation.ToString() || l.SwapListStatus == SwapListingStatus.Published.ToString())
+                    && l.Created >= currentStart);
+                metrics.Add(new AnalyticsMetricDto
+                {
+                    Name = "Active Swaps",
+                    Count = count,
+                    Percentage = totalListings == 0 ? 0 : Math.Round((double)count / totalListings * 100, 2)
+                });
+            }
+
+            if (metricFilter == AnalyticsMetricFilter.All || metricFilter == AnalyticsMetricFilter.CompletedSwaps)
+            {
+                var count = await _context.ListingItems.CountAsync(l =>
+                    l.SwapListStatus == SwapListingStatus.Swapped.ToString()
+                    && l.Created >= currentStart);
+                metrics.Add(new AnalyticsMetricDto
+                {
+                    Name = "Completed Swaps",
+                    Count = count,
+                    Percentage = totalListings == 0 ? 0 : Math.Round((double)count / totalListings * 100, 2)
+                });
+            }
+
+            // Monthly breakdown scoped to the selected period
             var monthlySwaps = await _context.ListingItems
+                .Where(l => l.Created >= currentStart)
                 .GroupBy(l => l.Created.Month)
                 .Select(g => new { Month = g.Key, Count = g.Count() })
                 .ToListAsync();
@@ -335,6 +374,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 .Select(g => new
                 {
                     UserId = g.Key,
+                    Id = g.OrderByDescending(s => s.Created)
+                          .Select(s => s.Id)
+                          .FirstOrDefault(),
                     LatestStatus = g.OrderByDescending(s => s.Created)
                                     .Select(s => s.Status)
                                     .FirstOrDefault()
@@ -342,10 +384,13 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 .ToListAsync();
 
             var statusDict = swapperActivities.ToDictionary(x => x.UserId, x => x.LatestStatus);
+            var swapIdDict = swapperActivities.ToDictionary(x => x.UserId, x => x.Id);
 
             // 🔹 Build result list
             var swaps = userRoomList.Select(x => new SwapActivityDto
             {
+                Id = swapIdDict.ContainsKey(x.UserId) ? swapIdDict[x.UserId] :
+                     swapIdDict.ContainsKey(x.SwapperId) ? swapIdDict[x.SwapperId] : null,
                 OwnerName = $"{x.User.FirstName} {x.User.LastName}",
                 SwapperName = $"{x.Swapper.FirstName} {x.Swapper.LastName}",
                 OwnerItem = userItemsDict.ContainsKey(x.UserId) ? userItemsDict[x.UserId] : "N/A",
@@ -431,6 +476,39 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             };
 
             return dto;
+        }
+
+        public async Task<UserStatsDto> GetUserStatsAsync(CancellationToken cancellationToken)
+        {
+            var totalUsers = await _context.Users.CountAsync(cancellationToken);
+
+            // Active: email confirmed and not suspended
+            var activeUsers = await _context.Users
+                .CountAsync(u => u.EmailConfirmed && !u.IsSuspend, cancellationToken);
+
+            // Inactive: not confirmed or suspended
+            var inactiveUsers = totalUsers - activeUsers;
+
+            // Swappers: users who have at least one listing
+            var swapperIds = await _context.ListingItems
+                .Select(l => l.UserId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var totalSwappers = swapperIds.Count;
+
+            // Visitors: confirmed users who have never listed anything
+            var totalVisitors = await _context.Users
+                .CountAsync(u => u.EmailConfirmed && !swapperIds.Contains(u.Id), cancellationToken);
+
+            return new UserStatsDto
+            {
+                TotalUsers = totalUsers,
+                ActiveUsers = activeUsers,
+                InactiveUsers = inactiveUsers,
+                TotalSwappers = totalSwappers,
+                TotalVisitors = totalVisitors
+            };
         }
 
 

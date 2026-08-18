@@ -15,6 +15,7 @@ namespace SwapShop.Application.Queries.Admin
         public decimal lowestRange { get; set; }
         public decimal highestRange { get; set; }
         public SwapListingStatus swapListingStatus { get; set; }
+        public ListingReiviewStage reviewStage { get; set; }
         public ListingDateFilter listingDateType { get; set; }
         public int pageNumber { get; set; }
         public int perpageSize { get; set; }

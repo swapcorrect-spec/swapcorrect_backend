@@ -11,6 +11,7 @@ namespace SwapShop.Application.Queries.Report
         public string? searhParam { get; set; }
         public ReportUserStatus status { get; set; }
         public ReportDateFilter reportFilerDate { get; set; }
+        public string? UserId { get; set; }
         public int pageNumber { get; set; }
         public int perpageSize { get; set; }
     }

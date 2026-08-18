@@ -8,12 +8,13 @@ namespace SwapShop.Domain.OtherService.Interface
 {
     public interface IAdminService
     {
-        Task<PaginatedResult<RecentActivityDto>> GetRecentActivitiesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken);
-        Task<AdvancedAnalyticsDto> GetAdvancedAnalyticsAsync();
+        Task<PaginatedResult<RecentActivityDto>> GetRecentActivitiesAsync(int pageNumber, int pageSize, string? userId, CancellationToken cancellationToken);
+        Task<AdvancedAnalyticsDto> GetAdvancedAnalyticsAsync(AnalyticsMetricFilter metricFilter, PeriodicFilter periodicFilter);
         Task<DashboardSummaryDto> GetDashboardSummaryAsync(PeriodicFilter filter);
         Task<PaginatedResult<UserListDto>> GetUsersAsync(PaginationFilterDto filter, AdminFilterType filterType, int days = 30);
         Task<PaginatedResult<SwapActivityDto>> GetSwapsActivityAsync(int pageNumber, int pageSize, PeriodicFilter filter);
         Task<SwapDetailsDto> GetSwapDetailsAsync(string userRoomId);
+        Task<UserStatsDto> GetUserStatsAsync(CancellationToken cancellationToken);
 
         /* Task<DashboardCardDto> TotalSwapperAsync(PeriodicFilter filter);
          Task<DashboardCardDto> TotalVisitorAsync(PeriodicFilter filter);

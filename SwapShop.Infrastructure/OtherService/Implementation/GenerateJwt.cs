@@ -5,6 +5,7 @@ using Swap_Shop.Domain.Entities;
 using SwapShop.Domain.OtherService.Interface;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace SwapShop.Infrastructure.OtherService.Implementation
@@ -42,13 +43,20 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             var token = new JwtSecurityToken(
                 issuer: _configuration["JWT:ValidIssuer"],
                 audience: _configuration["JWT:ValidAudience"],
-                expires: DateTime.Now.AddDays(2),
+                expires: DateTime.Now.AddMinutes(5),
                 claims: authClaims,
                 signingCredentials: new SigningCredentials(authSigninKey, SecurityAlgorithms.HmacSha384Signature));
             var Jwttoken = new JwtSecurityTokenHandler().WriteToken(token);
             return Jwttoken;
         }
 
+        public string GenerateRefreshToken()
+        {
+            var randomBytes = new byte[64];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomBytes);
+            return Convert.ToBase64String(randomBytes);
+        }
 
     }
 }

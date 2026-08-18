@@ -11,7 +11,7 @@ namespace SwapShop.Domain.OtherService.Interface
         Task<ResponseDto<ListedItemResp>> GetSingleListing(string? userId, string listingId);
         Task<ResponseDto<List<ListedItemResp>>> GetItemByRaterHotPick(string? userId, int limit);
         Task<ResponseDto<string>> CreateItemRequest(ListItemReq req, string userid);
-        Task<ResponseDto<string>> AdminReview(string userId, string listId, ListingReiviewStage review);
+        Task<ResponseDto<string>> AdminReview(string userId, string listId, ListingReiviewStage review, string? rejectionNote = null);
         Task<ResponseDto<List<ListedItemResp>>> GetItemByUserPreviousWantItem(string? userId, int limit);
         Task<ResponseDto<List<ListedItemResp>>> GetItemElectronics(string? userId, int limit);
         Task<ResponseDto<List<ItemCategory>>> GetAllCategory();
@@ -27,6 +27,7 @@ namespace SwapShop.Domain.OtherService.Interface
         Task<ResponseDto<PaginatedResult<SwapProceedingResp>>> SearchpaginatedListingSwap(string? listinguserId, string? searhParam,
             SwapListingEnumStatus swapListingStatus, ListingDateFilter listingDate, int pageNumber, int perpageSize);
         Task<ResponseDto<PaginatedResult<ListedItemResp>>> AdminSearchpaginatedListing(string? userId, string? listinguserId, string? searhParam,
-           string? categoryId, string? location, SwapListingStatus listingStatus, decimal lowestRange, decimal highestRange, ListingDateFilter listingDate, int pageNumber, int perpageSize);
+           string? categoryId, string? location, SwapListingStatus listingStatus, ListingReiviewStage reviewStage, decimal lowestRange, decimal highestRange, ListingDateFilter listingDate, int pageNumber, int perpageSize);
+        Task<ResponseDto<string>> FlagContent(string contentId, FlagContentType contentType, bool isFlagged);
     }
 }

@@ -10,6 +10,7 @@ using SwapShop.Application.Queries.Auth;
 using SwapShop.Application.Queries.Payment;
 using SwapShop.Domain.Dtos.Request.Payment;
 using SwapShop.Domain.Dtos.Response.Auth;
+using SwapShop.Domain.Enum;
 using System.IdentityModel.Tokens.Jwt;
 
 namespace SwapShop.Api.Controllers
@@ -95,6 +96,30 @@ namespace SwapShop.Api.Controllers
 
             };
 
+            return MediatorResponseHelper.Handle(_mediator, mapData, this);
+        }
+
+        [HttpPost("withdrawal/submit")]
+        public Task<IActionResult> SubmitWithdrawal(SubmitWithdrawalRequest req)
+        {
+            var userid = User.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+            var mapData = new SubmitWithdrawalCommand
+            {
+                UserId = userid,
+                SwapId = req.SwapId
+            };
+            return MediatorResponseHelper.Handle(_mediator, mapData, this);
+        }
+
+        [HttpPost("advance-swap/complete")]
+        public Task<IActionResult> CompleteAdvanceSwap(CompleteAdvanceSwapRequest req)
+        {
+            var userid = User.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+            var mapData = new CompleteAdvanceSwapCommand
+            {
+                UserId = userid,
+                SwapId = req.SwapId
+            };
             return MediatorResponseHelper.Handle(_mediator, mapData, this);
         }
 

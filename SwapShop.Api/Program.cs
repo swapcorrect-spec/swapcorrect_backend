@@ -30,6 +30,7 @@ app.UseSwagger();
     app.UseSwaggerUI();
 /*}*/
 app.MapHub<ChatHub>("/chathub");
+app.MapHub<NotificationHub>("/notificationhub");
 app.UseHttpsRedirection();
 
 app.UseAuthorization();

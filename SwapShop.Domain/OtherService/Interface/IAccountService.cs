@@ -23,9 +23,11 @@ namespace SwapShop.Domain.OtherService.Interface
         Task<ResponseDto<string>> UnSuspendUserAsync(string useremail);
         Task<ResponseDto<ApplicationUser>> GetUserbyId(string userId);
         Task<ResponseDto<string>> UpdateUserRole(string id, string role);
-        Task<ResponseDto<string>> ResetPasswordSignedInUser(string userid, string newPassword);
+        Task<ResponseDto<string>> ResetPasswordSignedInUser(string userid, string oldPassword, string newPassword);
         Task<ResponseDto<LoginResultDto>> GoogleLoginAsync(string idToken, string genericPassword);
         Task<ResponseDto<string>> CreateAccountOrUpdate(string userId, BankAccountSavedRequestDto requestDto);
+        Task<ResponseDto<string>> LogoutAsync(string userId);
+        Task<ResponseDto<LoginResultDto>> RefreshTokenAsync(string refreshToken);
 
     }
 }

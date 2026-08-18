@@ -18,7 +18,7 @@ namespace SwapShop.Application.QueryHandler.Admin
 
         public async Task<ResponseDto<AdvancedAnalyticsDto>> Handle(AdvancedAnalyticsQuery request, CancellationToken cancellationToken)
         {
-            var result = await _adminService.GetAdvancedAnalyticsAsync();
+            var result = await _adminService.GetAdvancedAnalyticsAsync(request.MetricFilter, request.PeriodicFilter);
 
             return new ResponseDto<AdvancedAnalyticsDto>
             {

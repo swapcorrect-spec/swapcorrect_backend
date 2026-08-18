@@ -5,5 +5,6 @@ namespace SwapShop.Domain.OtherService.Interface
     public interface IGenerateJwt
     {
         Task<string> GenerateToken(ApplicationUser user);
+        string GenerateRefreshToken();
     }
 }

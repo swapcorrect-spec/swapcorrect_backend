@@ -404,6 +404,50 @@ namespace SwapShop.Infrastructure.Migrations
                     b.ToTable("ItemCategorys");
                 });
 
+            modelBuilder.Entity("SwapShop.Domain.Enitities.Notification", b =>
+                {
+                    b.Property<string>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReferenceId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("SwapShop.Domain.Enitities.Payments", b =>
                 {
                     b.Property<string>("Id")
@@ -692,6 +736,9 @@ namespace SwapShop.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsFlagged")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("ListId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -791,6 +838,49 @@ namespace SwapShop.Infrastructure.Migrations
                     b.ToTable("UserReport");
                 });
 
+            modelBuilder.Entity("SwapShop.Domain.Enitities.WithdrawalRequest", b =>
+                {
+                    b.Property<string>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text");
+
+                    b.Property<string>("AdminNote")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Amount")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SwapId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SwapId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("WithdrawalRequests");
+                });
+
             modelBuilder.Entity("Swap_Shop.Domain.Entities.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -814,6 +904,9 @@ namespace SwapShop.Infrastructure.Migrations
                     b.Property<DateTime>("Created")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("DeliveryAddress")
                         .IsRequired()
                         .HasColumnType("text");
@@ -833,6 +926,9 @@ namespace SwapShop.Infrastructure.Migrations
                     b.Property<string>("Gender")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsFlag")
                         .HasColumnType("boolean");
@@ -882,6 +978,12 @@ namespace SwapShop.Infrastructure.Migrations
 
                     b.Property<string>("ProfilePicture")
                         .HasColumnType("text");
+
+                    b.Property<string>("RefreshToken")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RefreshTokenExpiry")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
@@ -969,6 +1071,9 @@ namespace SwapShop.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsFlagged")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("ItemCondition")
                         .IsRequired()
                         .HasColumnType("text");
@@ -987,6 +1092,9 @@ namespace SwapShop.Infrastructure.Migrations
 
                     b.Property<string>("Location")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RejectionNote")
                         .HasColumnType("text");
 
                     b.Property<string>("ReviewStage")
@@ -1259,6 +1367,17 @@ namespace SwapShop.Infrastructure.Migrations
                     b.Navigation("user");
                 });
 
+            modelBuilder.Entity("SwapShop.Domain.Enitities.Notification", b =>
+                {
+                    b.HasOne("Swap_Shop.Domain.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SwapShop.Domain.Enitities.Payments", b =>
                 {
                     b.HasOne("SwapShop.Domain.Enitities.SwappingProceeding", "Swap")
@@ -1405,6 +1524,25 @@ namespace SwapShop.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ReportedUser");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SwapShop.Domain.Enitities.WithdrawalRequest", b =>
+                {
+                    b.HasOne("SwapShop.Domain.Enitities.SwappingProceeding", "Swap")
+                        .WithMany()
+                        .HasForeignKey("SwapId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Swap_Shop.Domain.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Swap");
 
                     b.Navigation("User");
                 });

@@ -309,6 +309,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                                 MediaType = d.MediaType,
                             }).ToList(),
                             IsFavItem = !string.IsNullOrEmpty(userId) && u.favListItems.Any(d => d.UserId == userId),
+                            IsFlagged = u.IsFlagged,
                             SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                         })
                         .Take(limit)
@@ -344,6 +345,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                                     MediaType = d.MediaType,
                                 }).ToList(),
                                 IsFavItem = !string.IsNullOrEmpty(userId) && u.favListItems.Any(d => d.UserId == userId),
+                                IsFlagged = u.IsFlagged,
                                 SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                             })
                             .Take(limit)
@@ -427,6 +429,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                                     MediaType = d.MediaType,
                                 }).ToList(),
                                 IsFavItem = !string.IsNullOrWhiteSpace(userId) && u.favListItems.Any(d => d.UserId == userId),
+                                IsFlagged = u.IsFlagged,
                                 SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                             })
                             .Take(limit)
@@ -469,6 +472,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                                 MediaType = d.MediaType,
                             }).ToList(),
                             IsFavItem = !string.IsNullOrWhiteSpace(userId) && u.favListItems.Any(d => d.UserId == userId),
+                            IsFlagged = u.IsFlagged,
                             SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                         })
                         .Take(limit)
@@ -527,6 +531,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                             MediaType = d.MediaType,
                         }).ToList(),
                         IsFavItem = !string.IsNullOrWhiteSpace(userId) && u.favListItems.Any(d => d.UserId == userId),
+                        IsFlagged = u.IsFlagged,
                         SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                     })
                     .Take(limit)
@@ -582,6 +587,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                             MediaType = d.MediaType,
                         }).ToList(),
                         IsFavItem = !string.IsNullOrWhiteSpace(userId) && u.favListItems.Any(d => d.UserId == userId),
+                        IsFlagged = u.IsFlagged,
                         SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                     }).FirstOrDefaultAsync();
 
@@ -683,6 +689,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
 
                 if (!string.IsNullOrWhiteSpace(listinguserId))
                     query = query.Where(x => x.UserId == listinguserId);
+                else if (!string.IsNullOrWhiteSpace(userId))
+                    query = query.Where(x => x.UserId != userId);
 
                 if (!string.IsNullOrWhiteSpace(searhParam))
                     query = query.Where(x =>
@@ -750,6 +758,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         }).ToList(),
                         ListingId = u.Id,
                         IsFavItem = !string.IsNullOrEmpty(userId) && u.favListItems.Any(d => d.UserId == userId),
+                        IsFlagged = u.IsFlagged,
                         SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                     })
                     .ToListAsync();
@@ -781,7 +790,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             }
         }
         public async Task<ResponseDto<PaginatedResult<ListedItemResp>>> AdminSearchpaginatedListing(string? userId, string? listinguserId, string? searhParam, 
-            string? categoryId, string? location, SwapListingStatus listingStatus , decimal lowestRange, decimal highestRange, ListingDateFilter listingDate, int pageNumber, int perpageSize)
+            string? categoryId, string? location, SwapListingStatus listingStatus, ListingReiviewStage reviewStage, decimal lowestRange, decimal highestRange, ListingDateFilter listingDate, int pageNumber, int perpageSize)
         {
             var response = new ResponseDto<PaginatedResult<ListedItemResp>>();
 
@@ -799,6 +808,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 // filters
                 if (SwapListingStatus.All != listingStatus)
                     query = query.Where(x => x.SwapListStatus == listingStatus.ToString());
+
+                if (ListingReiviewStage.All != reviewStage)
+                    query = query.Where(x => x.ReviewStage == reviewStage.ToString());
                 if (!string.IsNullOrWhiteSpace(categoryId))
                     query = query.Where(x => x.CategoryId == categoryId);
 
@@ -871,6 +883,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         }).ToList(),
                         ListingId = u.Id,
                         IsFavItem = !string.IsNullOrEmpty(userId) && u.favListItems.Any(d => d.UserId == userId),
+                        IsFlagged = u.IsFlagged,
                         SwapListRequest = u.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                     })
                     .ToListAsync();
@@ -1045,12 +1058,20 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     })
                     .FirstOrDefaultAsync();
 
+                if (getSingleProceed == null)
+                {
+                    response.ErrorMessages = new List<string> { "Swap proceeding not found" };
+                    response.StatusCode = 404;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+
                 var checkChatRoomBetweenUser = await _userRoomRepo.GetQueryable().Include(u => u.Room)
                    .FirstOrDefaultAsync(ur =>
                   (ur.UserId == getSingleProceed.visitorUserId && ur.SwapperId == getSingleProceed.swapperUserId) ||
                   (ur.UserId == getSingleProceed.swapperUserId && ur.SwapperId == getSingleProceed.visitorUserId));
 
-                getSingleProceed.RoomName = checkChatRoomBetweenUser.Room.RoomName;
+                getSingleProceed.RoomName = checkChatRoomBetweenUser?.Room?.RoomName;
 
 
                 response.Result = getSingleProceed;
@@ -1098,12 +1119,25 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
 
                 if (checkExistingSwapping != null)
                 {
+                    var existingRoom = await _userRoomRepo.GetQueryable()
+                        .Include(ur => ur.Room)
+                        .FirstOrDefaultAsync(ur =>
+                            (ur.UserId == userId && ur.SwapperId == Items.UserId) ||
+                            (ur.UserId == Items.UserId && ur.SwapperId == userId));
+
+                    var errorMessages = new List<string>
+                    {
+                        "You already have an ongoing swap with this user. Please complete it before starting a new one.",
+                    };
+
+                    if (!string.IsNullOrEmpty(existingRoom?.Room?.RoomName))
+                    {
+                        errorMessages.Add(existingRoom.Room.RoomName);
+                    }
+
                     response.StatusCode = 400;
                     response.DisplayMessage = "Error";
-                    response.ErrorMessages = new List<string>
-    {
-        "You already have an ongoing swap with this user. Please complete it before starting a new one."
-    };
+                    response.ErrorMessages = errorMessages;
                     return response;
                 }
 
@@ -1287,7 +1321,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 return response;
             }
         }
-        public async Task<ResponseDto<string>> AdminReview(string userId, string listId, ListingReiviewStage review)
+        public async Task<ResponseDto<string>> AdminReview(string userId, string listId, ListingReiviewStage review, string? rejectionNote = null)
         {
 
             var response = new ResponseDto<string>();
@@ -1302,6 +1336,22 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     return response;
                 }
 
+                if (review == ListingReiviewStage.Rejected)
+                {
+                    if (string.IsNullOrWhiteSpace(rejectionNote))
+                    {
+                        response.DisplayMessage = "Error";
+                        response.ErrorMessages = new List<string>() { "A rejection note is required when rejecting an item" };
+                        response.StatusCode = 400;
+                        return response;
+                    }
+                    Items.RejectionNote = rejectionNote;
+                }
+                else
+                {
+                    Items.RejectionNote = null;
+                }
+
                 Items.ReviewStage = review.ToString();
                 _listingItemRepo.Update(Items);
                 await _listingItemRepo.SaveChanges();
@@ -1314,6 +1364,56 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             {
                 _logger.LogError(ex.Message, ex);
                 response.ErrorMessages = new List<string>() { "Error in reveiwing swapping item" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+
+        public async Task<ResponseDto<string>> FlagContent(string contentId, FlagContentType contentType, bool isFlagged)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                if (contentType == FlagContentType.Listing)
+                {
+                    var listing = await _listingItemRepo.GetByIdAsync(contentId);
+                    if (listing == null)
+                    {
+                        response.DisplayMessage = "Error";
+                        response.ErrorMessages = new List<string>() { "Listing not found" };
+                        response.StatusCode = 400;
+                        return response;
+                    }
+                    listing.IsFlagged = isFlagged;
+                    _listingItemRepo.Update(listing);
+                    await _listingItemRepo.SaveChanges();
+                    response.Result = isFlagged ? "Listing flagged successfully" : "Listing unflagged successfully";
+                }
+                else
+                {
+                    var swap = await _swappingProceedingRepo.GetByIdAsync(contentId);
+                    if (swap == null)
+                    {
+                        response.DisplayMessage = "Error";
+                        response.ErrorMessages = new List<string>() { "Swap not found" };
+                        response.StatusCode = 400;
+                        return response;
+                    }
+                    swap.IsFlagged = isFlagged;
+                    _swappingProceedingRepo.Update(swap);
+                    await _swappingProceedingRepo.SaveChanges();
+                    response.Result = isFlagged ? "Swap flagged successfully" : "Swap unflagged successfully";
+                }
+
+                response.StatusCode = 200;
+                response.DisplayMessage = "Success";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error flagging content" };
                 response.StatusCode = 500;
                 response.DisplayMessage = "Error";
                 return response;

@@ -15,7 +15,7 @@ namespace SwapShop.Application.CommandHandler.ListingItem
 
         public async Task<ResponseDto<string>> Handle(AdminReviewCommand request, CancellationToken cancellationToken)
         {
-            return await _listItemService.AdminReview(request.UserId, request.ListingId, request.review);
+            return await _listItemService.AdminReview(request.UserId, request.ListingId, request.review, request.RejectionNote);
         }
     }
 }

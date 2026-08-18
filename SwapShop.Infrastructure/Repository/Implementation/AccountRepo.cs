@@ -67,7 +67,9 @@ namespace SwapShop.Infrastructure.Repository.Implementation
 
         public async Task<bool> DeleteUserByEmail(ApplicationUser user)
         {
-            var result = await _userManager.DeleteAsync(user);
+            user.IsDeleted = true;
+            user.DeletedAt = DateTime.UtcNow;
+            var result = await _userManager.UpdateAsync(user);
             if (result.Succeeded)
             {
                 return true;
@@ -192,6 +194,11 @@ namespace SwapShop.Infrastructure.Repository.Implementation
                 return true;
             }
             return false;
+        }
+
+        public async Task<ApplicationUser?> FindUserByRefreshTokenAsync(string refreshToken)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.RefreshToken == refreshToken);
         }
 
     }

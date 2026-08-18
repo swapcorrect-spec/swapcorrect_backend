@@ -11,7 +11,7 @@ namespace SwapShop.Domain.OtherService.Interface
         Task<ResponseDto<string>> ReportUser(ReportUserDto req, string userid);
         Task<ResponseDto<string>> ChangeReportStatus(ReportUserStatus status, string ReportId);
         Task<ResponseDto<PaginatedResult<UserReportPaginatedDto>>> SearchUserReportPaginated(string? searhParam, ReportUserStatus status,
-           ReportDateFilter reportFilerDate, int pageNumber, int perpageSize);
+           ReportDateFilter reportFilerDate, string? userId, int pageNumber, int perpageSize);
         Task<ResponseDto<SingleReportDetails>> GetSingleReportDetails(string ReportId);
     }
 }

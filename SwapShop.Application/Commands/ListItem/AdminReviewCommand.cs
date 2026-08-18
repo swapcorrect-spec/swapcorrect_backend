@@ -9,5 +9,6 @@ namespace SwapShop.Application.Commands.ListItem
         public string UserId { get; set; }
         public string ListingId { get; set; }
         public ListingReiviewStage review { get; set; }
+        public string? RejectionNote { get; set; }
     }
 }

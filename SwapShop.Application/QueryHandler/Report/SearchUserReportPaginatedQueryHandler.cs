@@ -16,7 +16,7 @@ namespace SwapShop.Application.QueryHandler.Report
         }
         public async Task<ResponseDto<PaginatedResult<UserReportPaginatedDto>>> Handle(SearchUserReportPaginatedQuery request, CancellationToken cancellationToken)
         {
-            return await _reportService.SearchUserReportPaginated(request.searhParam, request.status, request.reportFilerDate, request.pageNumber, request.perpageSize);
+            return await _reportService.SearchUserReportPaginated(request.searhParam, request.status, request.reportFilerDate, request.UserId, request.pageNumber, request.perpageSize);
         }
     }
 }

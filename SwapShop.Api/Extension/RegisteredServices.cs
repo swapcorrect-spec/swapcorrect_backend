@@ -26,6 +26,7 @@ namespace SwapSwap.Api.MappingProfile
             services.AddScoped<IChatService, ChatService>();
             services.AddScoped<IPaystackService, PaystackService>();
             services.AddScoped<IPaymentService, PaymentService>();
+            services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IHelper, Helper>();
             services.AddAutoMapper(typeof(ProjectProfile));
             services.AddHttpClient();

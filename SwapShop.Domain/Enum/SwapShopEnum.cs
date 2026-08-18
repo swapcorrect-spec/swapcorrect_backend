@@ -8,6 +8,7 @@ namespace SwapShop.Domain.Enum
 {
     public enum ListingReiviewStage
     {
+        All,
         Pending,
         Approved,
         Rejected
@@ -27,6 +28,19 @@ namespace SwapShop.Domain.Enum
         Swapped,
         All
     }
+    public enum AnalyticsMetricFilter
+    {
+        All,
+        ActiveUsers,
+        ApprovedListings,
+        ActiveSwaps,
+        CompletedSwaps
+    }
+    public enum FlagContentType
+    {
+        Listing,
+        Swap
+    }
     public enum SwapProceedingStatus
     {
        
@@ -43,6 +57,18 @@ namespace SwapShop.Domain.Enum
         AdvNegotiationSwapped,
         SettlementRequest
 
+    }
+    public enum WithdrawalStatus
+    {
+        All,
+        Pending,
+        Treated
+    }
+    public enum TransactionDateFilter
+    {
+        All = 1,
+        LastWeek,
+        LastMonth
     }
    
     public enum ListingDateFilter

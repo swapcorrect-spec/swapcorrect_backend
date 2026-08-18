@@ -18,7 +18,7 @@ namespace SwapShop.Application.QueryHandler.Admin
         public async Task<ResponseDto<PaginatedResult<ListedItemResp>>> Handle(AdminSearchpaginatedListingQuery request, CancellationToken cancellationToken)
         {
             return await _listItemService.AdminSearchpaginatedListing(request.UserId, request.listingUserId, request.searhParam,
-                request.categoryId, request.location, request.swapListingStatus, request.lowestRange, request.highestRange, request.listingDateType, request.pageNumber, request.perpageSize);
+                request.categoryId, request.location, request.swapListingStatus, request.reviewStage, request.lowestRange, request.highestRange, request.listingDateType, request.pageNumber, request.perpageSize);
         }
     }
 }

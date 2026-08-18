@@ -36,19 +36,29 @@ namespace SwapShop.Infrastructure.Helper
 
             return usersQuery.Select(u => new UserListDto
             {
+                UserId = u.Id,
                 Name = (u.FirstName + " " + u.LastName).Trim(),
+                Email = u.Email,
+                PhoneNumber = u.PhoneNumber,
+                Gender = u.Gender,
+                ProfilePicture = u.ProfilePicture,
+                City = u.City,
+                State = u.State,
+                Country = u.Country,
+                IsSuspended = u.IsSuspend,
+                IsFlagged = u.IsFlag,
+                IsEmailConfirmed = u.EmailConfirmed,
+                IsOnline = u.IsOnline,
+                Status = u.IsSuspend ? "Suspended" : (u.EmailConfirmed ? "Active" : "Inactive"),
                 RatingScore = (int)Math.Round(
                     ratingQ.Where(r => r.UserId == u.Id)
                            .Select(r => (double?)r.RateScore)
                            .Average() ?? 0.0
                 ),
-                UserId = u.Id,
-                Status = u.IsSuspend ? "Suspended" : (u.EmailConfirmed ? "Active" : "Inactive"),
                 SwapCompleted = listingQ.Count(l => l.UserId == u.Id && l.SwapListStatus == SwapListingStatus.Swapped.ToString()),
-                DateJoined = u.Created,
                 UserRole = listingQ.Any(l => l.UserId == u.Id) ? "Swapper" : "Visitor",
-                LastActive = u.LastLoginTime,
-                ProfilePicture = u.ProfilePicture
+                DateJoined = u.Created,
+                LastActive = u.LastLoginTime
             });
         }
 
@@ -69,6 +79,9 @@ namespace SwapShop.Infrastructure.Helper
 
         public async Task<PaginatedResult<UserListDto>> ExecuteUserListAsync(IQueryable<ApplicationUser> baseQuery, PaginationFilterDto filter)
         {
+            var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
+            var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
+
             baseQuery = ApplySearchAndBase(filter, baseQuery);
 
             var projected = BuildUserListProjection(baseQuery);
@@ -78,16 +91,17 @@ namespace SwapShop.Infrastructure.Helper
             var sorted = ApplySorting(projected, filter);
 
             var items = await sorted
-                .Skip((filter.PageNumber - 1) * filter.PageSize)
-                .Take(filter.PageSize)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
             return new PaginatedResult<UserListDto>
             {
                 Items = items,
                 TotalCount = totalCount,
-                PageNumber = filter.PageNumber,
-                PageSize = filter.PageSize
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
             };
         }
     }

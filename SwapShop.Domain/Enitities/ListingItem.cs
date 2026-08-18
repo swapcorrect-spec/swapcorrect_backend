@@ -22,5 +22,7 @@ namespace Swap_Shop.Domain.Entities
         public ICollection<Item_Media> Media { get; set; }
         public ICollection<SwapListRequest> SwapListRequest { get; set; }
         public string ItemCondition { get; set; } = string.Empty;
+        public string? RejectionNote { get; set; }
+        public bool IsFlagged { get; set; } = false;
     }
 }

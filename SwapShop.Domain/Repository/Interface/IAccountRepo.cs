@@ -41,5 +41,6 @@ namespace SwapShop.Domain.Repository.Interface
         Task<IList<string>> GetUserRoles(ApplicationUser user);
 
         Task<bool> DeleteUserByEmail(ApplicationUser user);
+        Task<ApplicationUser?> FindUserByRefreshTokenAsync(string refreshToken);
     }
 }

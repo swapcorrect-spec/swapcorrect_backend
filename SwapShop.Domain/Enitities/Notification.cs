@@ -1,13 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Swap_Shop.Domain.Entities;
+using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Swap_Shop.Domain.Entities
+namespace SwapShop.Domain.Enitities
 {
-    public class Notification
+    public class Notification : BaseEntity
     {
-        public int Id { get; set; }
+        public string UserId { get; set; }
+        [ForeignKey(nameof(UserId))]
+        public ApplicationUser User { get; set; }
+        public string Title { get; set; }
+        public string Message { get; set; }
+        public string Type { get; set; } = "General";
+        public string? ReferenceId { get; set; }
+        public bool IsRead { get; set; } = false;
     }
 }

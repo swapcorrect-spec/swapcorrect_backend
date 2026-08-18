@@ -12,5 +12,6 @@ namespace SwapShop.Domain.OtherService.Interface
         Task<ResponseDto<ReviewResp>> GetAllUserReview(string userId);
         
         Task<ResponseDto<UserReviewResponseDto>> GetReviewByRaterAsync(string raterId, string userId);
+        Task<ResponseDto<UserReviewResponseDto>> GetReviewByIdAsync(string reviewId);
     }
 }

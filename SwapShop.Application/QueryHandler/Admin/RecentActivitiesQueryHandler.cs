@@ -21,7 +21,7 @@ namespace SwapShop.Application.QueryHandler.Admin
         }
         public async Task<ResponseDto<PaginatedResult<RecentActivityDto>>> Handle(RecentActivitiesQuery request, CancellationToken cancellationToken)
         {
-            var recentActivites = await _adminService.GetRecentActivitiesAsync(request.PageNumber, request.PageSize, cancellationToken);
+            var recentActivites = await _adminService.GetRecentActivitiesAsync(request.PageNumber, request.PageSize, request.UserId, cancellationToken);
             return new ResponseDto<PaginatedResult<RecentActivityDto>> 
             { 
                 StatusCode = 200,

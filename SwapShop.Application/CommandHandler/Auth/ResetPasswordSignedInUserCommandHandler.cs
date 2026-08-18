@@ -23,7 +23,7 @@ namespace SwapShop.Application.CommandHandler.Auth
         }
         public async Task<ResponseDto<string>> Handle(ResetPasswordSignedInUserCommand request, CancellationToken cancellationToken)
         {
-            return await _accountService.ResetPasswordSignedInUser(request.UserId, request.NewPassword);
+            return await _accountService.ResetPasswordSignedInUser(request.UserId, request.OldPassword, request.NewPassword);
         }
     }
 }

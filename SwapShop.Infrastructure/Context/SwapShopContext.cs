@@ -31,6 +31,8 @@ namespace SwapShop.Infrastructure.Context
         public DbSet<ReportAdminNote> ReportAdminNotes { get; set; }
         public DbSet<Payments> Payments { get; set; }
         public DbSet<BankAccount> BankAccount { get; set; }
+        public DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
         public SwapShopContext(DbContextOptions options) : base(options) { }
     }
 }

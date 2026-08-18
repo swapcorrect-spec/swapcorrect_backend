@@ -56,5 +56,9 @@ namespace SwapShop.Api.Controllers
             return MediatorResponseHelper.Handle(_mediator, req, this);
         }
 
+        [HttpGet("Review/{reviewId}")]
+        public Task<IActionResult> GetReviewById(string reviewId)
+            => MediatorResponseHelper.Handle(_mediator, new GetReviewByIdQuery { ReviewId = reviewId }, this);
+
     }
 }

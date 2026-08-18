@@ -52,7 +52,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     UserId = userid,
                     ReportedUserId = req.ReportedUserId,
                     Description = req.Description,
-
+                    ReportType = req.ReportType,
 
                 });
                 if (req.EvidenceMediaFiles.Any())
@@ -197,7 +197,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 if (getSwapping.Any())
                 {
                     swappCount = getSwapping.Count();
-                    
+
                 }
                 var rateUser = await _user_Review_RatingRepo.GetQueryable()
                  .AsNoTracking().Where(u => u.UserId == getReport.ReportedPersonId).ToListAsync();
@@ -226,7 +226,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
         }
 
         public async Task<ResponseDto<PaginatedResult<UserReportPaginatedDto>>> SearchUserReportPaginated(string? searhParam, ReportUserStatus status,
-           ReportDateFilter reportFilerDate, int pageNumber, int perpageSize)
+           ReportDateFilter reportFilerDate, string? userId, int pageNumber, int perpageSize)
         {
             var response = new ResponseDto<PaginatedResult<UserReportPaginatedDto>>();
 
@@ -246,17 +246,24 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
 
                 // filters
 
+                if (!string.IsNullOrWhiteSpace(userId))
+                    query = query.Where(x => x.UserId == userId || x.ReportedUserId == userId);
 
                 if (!string.IsNullOrWhiteSpace(searhParam))
+                {
+
                     searhParam = searhParam.Trim().ToLower();
-                query = query.Where(x =>
-                    x.User.FirstName.ToLower().Contains(searhParam) ||
-                    x.User.LastName.ToLower().Contains(searhParam) ||
-                    x.User.UserName.ToLower().Contains(searhParam) ||
-                    x.ReportedUser.FirstName.ToLower().Contains(searhParam) ||
-                    x.ReportedUser.LastName.ToLower().Contains(searhParam) ||
-                    x.ReportedUser.UserName.ToLower().Contains(searhParam))
-                 ;
+                    query = query.Where(x =>
+                        x.User.FirstName.ToLower().Contains(searhParam) ||
+                        x.User.LastName.ToLower().Contains(searhParam) ||
+                        x.User.UserName.ToLower().Contains(searhParam) ||
+                        x.ReportedUser.FirstName.ToLower().Contains(searhParam) ||
+                        x.ReportedUser.LastName.ToLower().Contains(searhParam) ||
+                        x.ReportedUser.UserName.ToLower().Contains(searhParam))
+                     ;
+
+                }
+
 
 
 

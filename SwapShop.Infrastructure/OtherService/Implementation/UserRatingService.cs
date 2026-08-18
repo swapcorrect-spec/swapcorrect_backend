@@ -89,7 +89,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 var total4RatingCount = getAllUserReview.Count(u => u.RateScore == 4);
                 var total5RatingCount = getAllUserReview.Count(u => u.RateScore == 5);
                 var allMessage = getAllUserReview.Select(u => new ReviewMsgResp
-                {
+                { Id=u.Id,
                     DateCreated = u.Created,
                     Message = u.RatingDescription,
                     RateValue = u.RateScore,
@@ -182,6 +182,66 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 StatusCode = 200,
                 DisplayMessage = "Review removed successfully.",
                 Result = "Deleted"
+            };
+        }
+
+        public async Task<ResponseDto<UserReviewResponseDto>> GetReviewByIdAsync(string reviewId)
+        {
+            var review = await _context.User_Review_Ratings
+                .AsNoTracking()
+                .Include(r => r.Rater)
+                .Include(r => r.User)
+                .FirstOrDefaultAsync(r => r.Id == reviewId);
+
+            if (review == null)
+            {
+                return new ResponseDto<UserReviewResponseDto>
+                {
+                    StatusCode = 404,
+                    DisplayMessage = "Review not found.",
+                    ErrorMessages = new List<string> { "No review with the provided ID." }
+                };
+            }
+
+            return new ResponseDto<UserReviewResponseDto>
+            {
+                StatusCode = 200,
+                DisplayMessage = "Review fetched successfully.",
+                Result = new UserReviewResponseDto
+                {
+                    Id = review.Id,
+                    RaterId = review.RaterId,
+                    UserId = review.UserId,
+                    RateScore = review.RateScore,
+                    Description = review.RatingDescription,
+                    Created = review.Created,
+                    Rater = review.Rater == null ? null : new ReviewUserDto
+                    {
+                        Id = review.Rater.Id,
+                        UserName = review.Rater.UserName,
+                        FirstName = review.Rater.FirstName,
+                        LastName = review.Rater.LastName,
+                        ProfilePicture = review.Rater.ProfilePicture,
+                        City = review.Rater.City,
+                        State = review.Rater.State,
+                        Country = review.Rater.Country,
+                        IsOnline = review.Rater.IsOnline,
+                        LastSeen = review.Rater.LastSeen
+                    },
+                    User = review.User == null ? null : new ReviewUserDto
+                    {
+                        Id = review.User.Id,
+                        UserName = review.User.UserName,
+                        FirstName = review.User.FirstName,
+                        LastName = review.User.LastName,
+                        ProfilePicture = review.User.ProfilePicture,
+                        City = review.User.City,
+                        State = review.User.State,
+                        Country = review.User.Country,
+                        IsOnline = review.User.IsOnline,
+                        LastSeen = review.User.LastSeen
+                    }
+                }
             };
         }
     }

@@ -11,5 +11,6 @@ namespace SwapShop.Domain.Dtos.Request.ListingItem
     {
         public string ListingId { get; set; }
         public ListingReiviewStage review { get; set; }
+        public string? RejectionNote { get; set; }
     }
 }

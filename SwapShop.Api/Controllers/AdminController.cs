@@ -8,9 +8,13 @@ using SwapShop.Application.Commands;
 using SwapShop.Application.Commands.Admin;
 using SwapShop.Application.Commands.Auth;
 using SwapShop.Application.Commands.ListItem;
+using SwapShop.Application.Commands.Report;
 using SwapShop.Application.Queries.Admin;
 using SwapShop.Application.Queries.Auth;
 using SwapShop.Application.Queries.ListingItem;
+using SwapShop.Application.Queries.Notification;
+using SwapShop.Application.Queries.Payment;
+using SwapShop.Application.Queries.Report;
 using SwapShop.Domain.Dtos.Request.ListingItem;
 using SwapShop.Domain.Dtos.Response.Admin;
 using SwapShop.Domain.Dtos.Response.Auth;
@@ -45,16 +49,22 @@ namespace SwapShop.Api.Controllers
         }
 
         [HttpGet("recent-activities")]
-        public async Task<IActionResult> GetRecentActivities([FromQuery] int pageNumber, [FromQuery] int pageSize)
+        public async Task<IActionResult> GetRecentActivities([FromQuery] int pageNumber, [FromQuery] int pageSize, [FromQuery] string? userId = null)
         {
-            var result = await _mediator.Send(new RecentActivitiesQuery { PageNumber = pageNumber, PageSize = pageSize });
+            var result = await _mediator.Send(new RecentActivitiesQuery { PageNumber = pageNumber, PageSize = pageSize, UserId = userId });
             return Ok(result);
         }
 
         [HttpGet("advanced-analytics")]
-        public async Task<IActionResult> GetAdvancedAnalytics()
+        public async Task<IActionResult> GetAdvancedAnalytics(
+            [FromQuery] AnalyticsMetricFilter metricFilter = AnalyticsMetricFilter.All,
+            [FromQuery] PeriodicFilter periodicFilter = PeriodicFilter.AllTime)
         {
-            var result = await _mediator.Send(new AdvancedAnalyticsQuery());
+            var result = await _mediator.Send(new AdvancedAnalyticsQuery
+            {
+                MetricFilter = metricFilter,
+                PeriodicFilter = periodicFilter
+            });
             return Ok(result);
         }
 
@@ -108,7 +118,7 @@ namespace SwapShop.Api.Controllers
             => MediatorResponseHelper.Handle(_mediator, req, this);
         [HttpGet("paginated/search_item")]
         public Task<IActionResult> GetPaginatedSearchItem(string? userId, string? searhParam, string? listingUserId, string? categoryId,
-             string? location, decimal lowestRange, decimal highestRange,SwapListingStatus swapListingStatus ,ListingDateFilter listingDate, int pageNumber, int perpageSize)
+             string? location, decimal lowestRange, decimal highestRange, SwapListingStatus swapListingStatus, ListingReiviewStage reviewStage, ListingDateFilter listingDate, int pageNumber, int perpageSize)
         {
             var req = new AdminSearchpaginatedListingQuery
             {
@@ -122,7 +132,8 @@ namespace SwapShop.Api.Controllers
                 lowestRange = lowestRange,
                 listingDateType = listingDate,
                 listingUserId = listingUserId,
-                swapListingStatus = swapListingStatus
+                swapListingStatus = swapListingStatus,
+                reviewStage = reviewStage
 
             };
 
@@ -140,11 +151,87 @@ namespace SwapShop.Api.Controllers
                 UserId = userid,
                 ListingId = req.ListingId,
                 review = req.review,
-
+                RejectionNote = req.RejectionNote,
             };
 
             return MediatorResponseHelper.Handle(_mediator, mapData, this);
         }
-     
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpPut("flag-content")]
+        public Task<IActionResult> FlagContent([FromBody] FlagContentCommand req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpPut("withdrawal/treat")]
+        public Task<IActionResult> TreatWithdrawal([FromBody] TreatWithdrawalCommand req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpGet("withdrawals")]
+        public Task<IActionResult> GetWithdrawals([FromQuery] GetWithdrawalsQuery req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpGet("transactions")]
+        public Task<IActionResult> GetAllTransactions([FromQuery] GetAllTransactionsQuery req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpGet("transaction-stats")]
+        public async Task<IActionResult> GetTransactionStats(CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetTransactionStatsQuery(), cancellationToken);
+            return Ok(result);
+        }
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpGet("user-stats")]
+        public async Task<IActionResult> GetUserStats(CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetUserStatsQuery(), cancellationToken);
+            return Ok(result);
+        }
+
+        // ── Report Management ────────────────────────────────────────────────
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpGet("reports")]
+        public Task<IActionResult> GetAllReports([FromQuery] SearchUserReportPaginatedQuery req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpGet("reports/details")]
+        public Task<IActionResult> GetReportDetails([FromQuery] GetSingleReportDetailsQuery req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpPut("reports/change-status")]
+        public Task<IActionResult> ChangeReportStatus([FromBody] ChangeReportStatusCommand req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpPost("reports/add-note")]
+        public Task<IActionResult> AddReportNote([FromBody] AdminReportNoteCommand req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        /// <summary>Get all platform notifications. Optionally filter by userId and/or type.</summary>
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpGet("notifications")]
+        public async Task<IActionResult> GetAllNotifications(
+            [FromQuery] string? userId,
+            [FromQuery] string? type,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _mediator.Send(new GetAllNotificationsQuery
+            {
+                UserId = userId,
+                Type = type,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            }, cancellationToken);
+            return Ok(result);
+        }
     }
 }

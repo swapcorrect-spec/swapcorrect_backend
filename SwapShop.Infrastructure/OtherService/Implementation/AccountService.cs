@@ -197,7 +197,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     body
                 );
 
-                _emailServices.SendEmail(message);
+               // _emailServices.SendEmail(message);
 
                 await _activityLogRepo.AddActivitylog(createUser.Id, "Sign Up", "Register as a new user");
                 response.StatusCode = StatusCodes.Status200OK;
@@ -291,6 +291,13 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     response.DisplayMessage = "Error";
                     return response;
                 }
+                if (checkUserExist.IsDeleted == true)
+                {
+                    response.ErrorMessages = new List<string>() { "User is deleted, contact admin" };
+                    response.StatusCode = 400;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
 
                 var checkPassword = await _accountRepo.CheckAccountPassword(checkUserExist, signIn.Password);
                 if (checkPassword == false)
@@ -320,10 +327,15 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     return response;
                 }
 
+                var refreshToken = _generateJwt.GenerateRefreshToken();
+                checkUserExist.RefreshToken = refreshToken;
+                checkUserExist.RefreshTokenExpiry = DateTime.UtcNow.AddDays(7);
+                await _accountRepo.UpdateUserInfo(checkUserExist);
+
                 var getUserRole = await _accountRepo.GetUserRoles(checkUserExist);
                 response.StatusCode = StatusCodes.Status200OK;
                 response.DisplayMessage = "Successfully login";
-                response.Result = new LoginResultDto() { Jwt = generateToken, UserRole = getUserRole };
+                response.Result = new LoginResultDto() { Jwt = generateToken, RefreshToken = refreshToken, UserRole = getUserRole };
                 return response;
             }
             catch (Exception ex)
@@ -498,7 +510,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 return response;
             }
         }
-        public async Task<ResponseDto<string>> ResetPasswordSignedInUser(string userid, string newPassword)
+        public async Task<ResponseDto<string>> ResetPasswordSignedInUser(string userid, string oldPassword, string newPassword)
         {
             var response = new ResponseDto<string>();
             try
@@ -508,6 +520,14 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 {
                     response.ErrorMessages = new List<string>() { "There is no user with the userid provided" };
                     response.StatusCode = 404;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                var isOldPasswordValid = await _accountRepo.CheckAccountPassword(findUser, oldPassword);
+                if (!isOldPasswordValid)
+                {
+                    response.ErrorMessages = new List<string>() { "Old password is incorrect" };
+                    response.StatusCode = 400;
                     response.DisplayMessage = "Error";
                     return response;
                 }
@@ -744,7 +764,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             var response = new ResponseDto<string>();
             try
             {
-                var findUser = await _accountRepo.FindUserByEmailAsync(email);
+                var findUser = await _accountRepo.FindUserByIdAsync(email);
                 if (findUser == null)
                 {
                     response.ErrorMessages = new List<string>() { "There is no user with the email provided" };
@@ -752,6 +772,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     response.DisplayMessage = "Error";
                     return response;
                 }
+                
                 var deleteUser = await _accountRepo.DeleteUserByEmail(findUser);
                 if (deleteUser == false)
                 {
@@ -816,8 +837,13 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     response.DisplayMessage = "Error";
                     return response;
                 }
-                var mapUpdateDetails = _mapper.Map(updateUser, findUser);
-                var updateUserDetails = await _accountRepo.UpdateUserInfo(mapUpdateDetails);
+               findUser.FirstName= updateUser.FirstName;
+                findUser.LastName= updateUser.LastName;
+                findUser.PhoneNumber= updateUser.PhoneNumber;
+                findUser.ProfilePicture = updateUser.ProfileImageUrl;
+                if (!string.IsNullOrWhiteSpace(updateUser.Email))
+                    findUser.Email = updateUser.Email;
+                var updateUserDetails = await _accountRepo.UpdateUserInfo(findUser);
                 if (updateUserDetails == false)
                 {
                     response.ErrorMessages = new List<string>() { "Error in updating user info" };
@@ -981,11 +1007,17 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 }
 
                 var token = await _generateJwt.GenerateToken(checkUserExist);
+                var refreshToken = _generateJwt.GenerateRefreshToken();
+                checkUserExist.RefreshToken = refreshToken;
+                checkUserExist.RefreshTokenExpiry = DateTime.UtcNow.AddDays(7);
+                await _accountRepo.UpdateUserInfo(checkUserExist);
+
                 var roles = await _accountRepo.GetUserRoles(checkUserExist);
 
                 response.Result = new LoginResultDto
                 {
                     Jwt = token,
+                    RefreshToken = refreshToken,
                     UserRole = roles
                 };
                 response.StatusCode = 200;
@@ -1012,6 +1044,84 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             }
 
             return response;
+        }
+
+        public async Task<ResponseDto<string>> LogoutAsync(string userId)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var user = await _accountRepo.FindUserByIdAsync(userId);
+                if (user == null)
+                {
+                    response.ErrorMessages = new List<string>() { "User not found" };
+                    response.StatusCode = 404;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+
+                user.RefreshToken = null;
+                user.RefreshTokenExpiry = null;
+                await _accountRepo.UpdateUserInfo(user);
+
+                await _activityLogRepo.AddActivitylog(userId, "Logout", "User logged out");
+                response.StatusCode = StatusCodes.Status200OK;
+                response.DisplayMessage = "Success";
+                response.Result = "Logged out successfully";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error during logout" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+
+        public async Task<ResponseDto<LoginResultDto>> RefreshTokenAsync(string refreshToken)
+        {
+            var response = new ResponseDto<LoginResultDto>();
+            try
+            {
+                var user = await _accountRepo.FindUserByRefreshTokenAsync(refreshToken);
+                if (user == null)
+                {
+                    response.ErrorMessages = new List<string>() { "Invalid refresh token" };
+                    response.StatusCode = 401;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+
+                if (user.RefreshTokenExpiry == null || user.RefreshTokenExpiry <= DateTime.UtcNow)
+                {
+                    response.ErrorMessages = new List<string>() { "Refresh token has expired" };
+                    response.StatusCode = 401;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+
+                var newJwt = await _generateJwt.GenerateToken(user);
+                var newRefreshToken = _generateJwt.GenerateRefreshToken();
+                user.RefreshToken = newRefreshToken;
+                user.RefreshTokenExpiry = DateTime.UtcNow.AddDays(7);
+                await _accountRepo.UpdateUserInfo(user);
+
+                var roles = await _accountRepo.GetUserRoles(user);
+                response.StatusCode = StatusCodes.Status200OK;
+                response.DisplayMessage = "Token refreshed successfully";
+                response.Result = new LoginResultDto { Jwt = newJwt, RefreshToken = newRefreshToken, UserRole = roles };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error refreshing token" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+                return response;
+            }
         }
     }
 }

@@ -23,6 +23,10 @@ namespace Swap_Shop.Domain.Entities
         public DateTime Created { get; set; } = DateTime.UtcNow;
         public bool IsOnline { get; set; } = false;
         public string? LastSeen { get; set; }
+        public bool IsDeleted { get; set; } = false;
+        public DateTime? DeletedAt { get; set; }
+        public string? RefreshToken { get; set; }
+        public DateTime? RefreshTokenExpiry { get; set; }
         public ICollection<UserActivitylog> UserActivitylog { get; set; }
       
         public ICollection<ListingItem> UserListItems { get; set; }

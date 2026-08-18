@@ -78,9 +78,13 @@ namespace SwapShop.Api.Controllers
             mapData.UserId = userid;
             return MediatorResponseHelper.Handle(_mediator, mapData, this);
         }
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
         [HttpPost("user/delete_user")]
-        public Task<IActionResult> DeletUser(DeleteUserCommand req)
-           => MediatorResponseHelper.Handle(_mediator, req, this);
+        public Task<IActionResult> DeletUser()
+        {
+            var userId = User.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+            return MediatorResponseHelper.Handle(_mediator, new DeleteUserCommand() { id = userId }, this);
+        }
 
         [HttpPost("google-login")]
         public Task<IActionResult> GoogleLogin(GoogleLoginCommand req)
@@ -102,17 +106,30 @@ namespace SwapShop.Api.Controllers
 
         [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
         [HttpPut("user/reset_password_signedIn_user")]
-        public Task<IActionResult> ResetPasswordSignedInUser([FromQuery] string newPassword)
+        public Task<IActionResult> ResetPasswordSignedInUser([FromBody] ResetPasswordSignedInUserDto req)
         {
             var userId = User.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
             var command = new ResetPasswordSignedInUserCommand
             {
                 UserId = userId,
-                NewPassword = newPassword
+                OldPassword = req.OldPassword,
+                NewPassword = req.NewPassword
             };
 
             return MediatorResponseHelper.Handle(_mediator, command, this);
         }
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpPost("user/logout")]
+        public Task<IActionResult> Logout()
+        {
+            var userId = User.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+            return MediatorResponseHelper.Handle(_mediator, new LogoutCommand { UserId = userId }, this);
+        }
+
+        [HttpPost("user/refresh-token")]
+        public Task<IActionResult> RefreshToken([FromBody] RefreshTokenCommand req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
 
 
     }

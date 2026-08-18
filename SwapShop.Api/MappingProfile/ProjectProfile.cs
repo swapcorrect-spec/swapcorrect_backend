@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Swap_Shop.Domain.Entities;
 using SwapShop.Application.Commands;
 using SwapShop.Application.Commands.ListItem;
 using SwapShop.Application.Queries.Auth;
@@ -17,6 +18,11 @@ namespace ProjectX.Api.MappingProfile
             CreateMap<RegisterCommand, SignUp>().ReverseMap();
             CreateMap<LoginQuery, SignInModel>().ReverseMap();
             CreateMap<ListItemCommand, ListItemReq>().ReverseMap();
+            CreateMap<UpdateUserDto, UpdateUserInfoCommand>();
+            CreateMap<UpdateUserDto, ApplicationUser>().ReverseMap();
+            CreateMap<UpdateUserDto
+, UpdateUserInfoCommand>().ReverseMap();
+               
 
             
 

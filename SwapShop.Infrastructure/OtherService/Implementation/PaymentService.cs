@@ -19,10 +19,12 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
         private readonly IAccountRepo _accountRepo;
         private readonly ISwapShopGenericRepo<SwappingProceeding> _swappingProceedingRepo;
         private readonly ISwapShopGenericRepo<Payments> _paymentsRepo;
+        private readonly ISwapShopGenericRepo<WithdrawalRequest> _withdrawalRequestRepo;
         public PaymentService(ILogger<PaymentService> logger,
             IPaystackService paystackService, IConfiguration configuration,
             ISwapShopGenericRepo<SwappingProceeding> swappingProceedingRepo,
-            IAccountRepo accountRepo, ISwapShopGenericRepo<Payments> paymentsRepo)
+            IAccountRepo accountRepo, ISwapShopGenericRepo<Payments> paymentsRepo,
+            ISwapShopGenericRepo<WithdrawalRequest> withdrawalRequestRepo)
         {
             _logger = logger;
             _paystackService = paystackService;
@@ -30,6 +32,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             _swappingProceedingRepo = swappingProceedingRepo;
             _accountRepo = accountRepo;
             _paymentsRepo = paymentsRepo;
+            _withdrawalRequestRepo = withdrawalRequestRepo;
         }
 
 
@@ -263,6 +266,393 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
 
 
 
+        }
+
+
+        public async Task<ResponseDto<PaginatedResult<TransactionDto>>> GetAllTransactions(string? userId, string? searchParam, TransactionDateFilter dateFilter, int pageNumber, int pageSize)
+        {
+            var response = new ResponseDto<PaginatedResult<TransactionDto>>();
+            try
+            {
+                var page = pageNumber > 0 ? pageNumber : 1;
+                var size = pageSize > 0 ? pageSize : 10;
+
+                var query = _paymentsRepo.GetQueryable().AsNoTracking();
+
+                if (!string.IsNullOrWhiteSpace(userId))
+                    query = query.Where(p => p.UserId == userId);
+
+                if (!string.IsNullOrWhiteSpace(searchParam))
+                    query = query.Where(p =>
+                        p.User.FirstName.Contains(searchParam) ||
+                        p.User.LastName.Contains(searchParam) ||
+                        p.User.Email.Contains(searchParam) ||
+                        p.OrderReferenceId.Contains(searchParam) ||
+                        p.FeeType.Contains(searchParam));
+
+                if (dateFilter != TransactionDateFilter.All)
+                {
+                    var cutoff = dateFilter == TransactionDateFilter.LastWeek
+                        ? DateTime.UtcNow.AddDays(-7)
+                        : DateTime.UtcNow.AddMonths(-1);
+                    query = query.Where(p => p.CreatedPaymentTime >= cutoff);
+                }
+
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .OrderByDescending(p => p.CreatedPaymentTime)
+                    .Skip((page - 1) * size)
+                    .Take(size)
+                    .Select(p => new TransactionDto
+                    {
+                        TransactionId = p.Id,
+                        UserId = p.UserId,
+                        UserFullName = p.User.FirstName + " " + p.User.LastName,
+                        UserEmail = p.User.Email,
+                        Amount = p.Amount,
+                        FeeType = p.FeeType,
+                        PaymentType = p.PaymentType,
+                        PaymentChannel = p.PaymentChannel,
+                        PaymentStatus = p.PaymentStatus,
+                        Description = p.Description,
+                        SwapId = p.SwapId,
+                        RoomName = p.RoomName,
+                        CreatedPaymentTime = p.CreatedPaymentTime,
+                        CompletePaymentTime = p.CompletePaymentTime == default ? null : p.CompletePaymentTime
+                    })
+                    .ToListAsync();
+
+                response.Result = new PaginatedResult<TransactionDto>
+                {
+                    Items = items,
+                    TotalCount = totalCount,
+                    PageNumber = page,
+                    PageSize = size,
+                    TotalPages = (int)Math.Ceiling((double)totalCount / size)
+                };
+                response.StatusCode = 200;
+                response.DisplayMessage = "Success";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error fetching transactions" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+            }
+            return response;
+        }
+
+        public async Task<ResponseDto<TransactionStatsDto>> GetTransactionStats()
+        {
+            var response = new ResponseDto<TransactionStatsDto>();
+            try
+            {
+                var now = DateTime.UtcNow;
+                var todayStart = now.Date;
+                var weekStart = now.AddDays(-7).Date;
+                var monthStart = now.AddMonths(-1).Date;
+
+                // Pull only the fields needed for stats
+                var all = await _paymentsRepo.GetQueryable()
+                    .AsNoTracking()
+                    .Select(p => new
+                    {
+                        p.Amount,
+                        p.PaymentStatus,
+                        p.FeeType,
+                        p.PaymentType,
+                        p.PaymentChannel,
+                        p.CreatedPaymentTime
+                    })
+                    .ToListAsync();
+
+                static decimal ParseAmount(string raw)
+                    => decimal.TryParse(raw, out var v) ? v : 0m;
+
+                var stats = new TransactionStatsDto
+                {
+                    TotalTransactions = all.Count,
+                    TotalRevenue = all.Sum(p => ParseAmount(p.Amount)),
+
+                    SuccessCount = all.Count(p => p.PaymentStatus == "SUCCESS"),
+                    SuccessRevenue = all.Where(p => p.PaymentStatus == "SUCCESS").Sum(p => ParseAmount(p.Amount)),
+
+                    PendingCount = all.Count(p => p.PaymentStatus == "CREATED" || p.PaymentStatus == "PENDING"),
+                    PendingRevenue = all.Where(p => p.PaymentStatus == "CREATED" || p.PaymentStatus == "PENDING").Sum(p => ParseAmount(p.Amount)),
+
+                    FailedCount = all.Count(p => p.PaymentStatus == "FAILED"),
+                    FailedRevenue = all.Where(p => p.PaymentStatus == "FAILED").Sum(p => ParseAmount(p.Amount)),
+
+                    TodayCount = all.Count(p => p.CreatedPaymentTime >= todayStart),
+                    TodayRevenue = all.Where(p => p.CreatedPaymentTime >= todayStart).Sum(p => ParseAmount(p.Amount)),
+
+                    ThisWeekCount = all.Count(p => p.CreatedPaymentTime >= weekStart),
+                    ThisWeekRevenue = all.Where(p => p.CreatedPaymentTime >= weekStart).Sum(p => ParseAmount(p.Amount)),
+
+                    ThisMonthCount = all.Count(p => p.CreatedPaymentTime >= monthStart),
+                    ThisMonthRevenue = all.Where(p => p.CreatedPaymentTime >= monthStart).Sum(p => ParseAmount(p.Amount)),
+
+                    ByFeeType = all
+                        .GroupBy(p => p.FeeType ?? "Unknown")
+                        .Select(g => new TransactionGroupStatDto
+                        {
+                            Label = g.Key,
+                            Count = g.Count(),
+                            TotalRevenue = g.Sum(p => ParseAmount(p.Amount))
+                        })
+                        .OrderByDescending(g => g.Count)
+                        .ToList(),
+
+                    ByPaymentType = all
+                        .GroupBy(p => p.PaymentType ?? "Unknown")
+                        .Select(g => new TransactionGroupStatDto
+                        {
+                            Label = g.Key,
+                            Count = g.Count(),
+                            TotalRevenue = g.Sum(p => ParseAmount(p.Amount))
+                        })
+                        .OrderByDescending(g => g.Count)
+                        .ToList(),
+
+                    ByPaymentChannel = all
+                        .GroupBy(p => p.PaymentChannel ?? "Unknown")
+                        .Select(g => new TransactionGroupStatDto
+                        {
+                            Label = g.Key,
+                            Count = g.Count(),
+                            TotalRevenue = g.Sum(p => ParseAmount(p.Amount))
+                        })
+                        .OrderByDescending(g => g.Count)
+                        .ToList()
+                };
+
+                response.Result = stats;
+                response.StatusCode = 200;
+                response.DisplayMessage = "Success";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error fetching transaction stats" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+            }
+            return response;
+        }
+
+        public async Task<ResponseDto<string>> SubmitWithdrawal(string userId, string swapId)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var swap = await _swappingProceedingRepo.GetByIdAsync(swapId);
+                if (swap == null)
+                {
+                    response.StatusCode = 400;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "Swap not found" };
+                    return response;
+                }
+                if (swap.Userid != userId)
+                {
+                    response.StatusCode = 403;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "Unauthorized" };
+                    return response;
+                }
+                if (swap.Status != SwapProceedingStatus.AdvNegotiationSwapped.ToString() &&
+                    swap.Status != SwapProceedingStatus.Swapped.ToString())
+                {
+                    response.StatusCode = 400;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "Swap must be completed before requesting withdrawal" };
+                    return response;
+                }
+
+                var existingRequest = await _withdrawalRequestRepo.GetQueryable()
+                    .FirstOrDefaultAsync(w => w.SwapId == swapId && w.UserId == userId && w.Status == "Pending");
+                if (existingRequest != null)
+                {
+                    response.StatusCode = 400;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "A pending withdrawal request already exists for this swap" };
+                    return response;
+                }
+
+                var payment = await _paymentsRepo.GetQueryable()
+                    .Where(p => p.SwapId == swapId && p.UserId == userId && p.PaymentStatus == "Paid")
+                    .OrderByDescending(p => p.CreatedPaymentTime)
+                    .FirstOrDefaultAsync();
+
+                var amount = payment?.Amount ?? "0";
+
+                await _withdrawalRequestRepo.Add(new WithdrawalRequest
+                {
+                    UserId = userId,
+                    SwapId = swapId,
+                    Amount = amount,
+                    Status = "Pending"
+                });
+                await _withdrawalRequestRepo.SaveChanges();
+
+                swap.Status = SwapProceedingStatus.SettlementRequest.ToString();
+                _swappingProceedingRepo.Update(swap);
+                await _swappingProceedingRepo.SaveChanges();
+
+                response.Result = "Withdrawal request submitted successfully";
+                response.StatusCode = 200;
+                response.DisplayMessage = "Success";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error submitting withdrawal request" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+            }
+            return response;
+        }
+
+        public async Task<ResponseDto<string>> TreatWithdrawal(string withdrawalId, string? adminNote)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var withdrawal = await _withdrawalRequestRepo.GetByIdAsync(withdrawalId);
+                if (withdrawal == null)
+                {
+                    response.StatusCode = 400;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "Withdrawal request not found" };
+                    return response;
+                }
+                if (withdrawal.Status == "Treated")
+                {
+                    response.StatusCode = 400;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "Withdrawal request is already treated" };
+                    return response;
+                }
+
+                withdrawal.Status = "Treated";
+                withdrawal.AdminNote = adminNote;
+                _withdrawalRequestRepo.Update(withdrawal);
+                await _withdrawalRequestRepo.SaveChanges();
+
+                response.Result = "Withdrawal request marked as treated";
+                response.StatusCode = 200;
+                response.DisplayMessage = "Success";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error treating withdrawal request" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+            }
+            return response;
+        }
+
+        public async Task<ResponseDto<string>> CompleteAdvanceSwap(string userId, string swapId)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var swap = await _swappingProceedingRepo.GetByIdAsync(swapId);
+                if (swap == null)
+                {
+                    response.StatusCode = 400;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "Swap not found" };
+                    return response;
+                }
+                if (swap.Status != SwapProceedingStatus.AdvNegotiation.ToString())
+                {
+                    response.StatusCode = 400;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "Swap must be in AdvNegotiation status to be completed" };
+                    return response;
+                }
+                if (swap.Userid != userId)
+                {
+                    response.StatusCode = 403;
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string>() { "Unauthorized" };
+                    return response;
+                }
+
+                swap.Status = SwapProceedingStatus.AdvNegotiationSwapped.ToString();
+                _swappingProceedingRepo.Update(swap);
+                await _swappingProceedingRepo.SaveChanges();
+
+                response.Result = "Advance swap completed successfully";
+                response.StatusCode = 200;
+                response.DisplayMessage = "Success";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error completing advance swap" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+            }
+            return response;
+        }
+
+        public async Task<ResponseDto<PaginatedResult<WithdrawalResponseDto>>> GetWithdrawals(string? userId, WithdrawalStatus status, int pageNumber, int pageSize)
+        {
+            var response = new ResponseDto<PaginatedResult<WithdrawalResponseDto>>();
+            try
+            {
+                var page = pageNumber > 0 ? pageNumber : 1;
+                var size = pageSize > 0 ? pageSize : 10;
+
+                var query = _withdrawalRequestRepo.GetQueryable().AsNoTracking();
+
+                if (!string.IsNullOrWhiteSpace(userId))
+                    query = query.Where(w => w.UserId == userId);
+
+                if (status != WithdrawalStatus.All)
+                    query = query.Where(w => w.Status == status.ToString());
+
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .OrderByDescending(w => w.Created)
+                    .Skip((page - 1) * size)
+                    .Take(size)
+                    .Select(w => new WithdrawalResponseDto
+                    {
+                        WithdrawalId = w.Id,
+                        UserId = w.UserId,
+                        UserFullName = w.User.FirstName + " " + w.User.LastName,
+                        SwapId = w.SwapId,
+                        Amount = w.Amount,
+                        Status = w.Status,
+                        AdminNote = w.AdminNote,
+                        CreatedOn = w.Created
+                    })
+                    .ToListAsync();
+
+                response.Result = new PaginatedResult<WithdrawalResponseDto>
+                {
+                    Items = items,
+                    TotalCount = totalCount,
+                    PageNumber = page,
+                    PageSize = size,
+                    TotalPages = (int)Math.Ceiling((double)totalCount / size)
+                };
+                response.StatusCode = 200;
+                response.DisplayMessage = "Success";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error fetching withdrawal requests" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+            }
+            return response;
         }
 
 
