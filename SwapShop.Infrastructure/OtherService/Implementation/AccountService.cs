@@ -197,7 +197,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     body
                 );
 
-               // _emailServices.SendEmail(message);
+               _emailServices.SendEmail(message);
 
                 await _activityLogRepo.AddActivitylog(createUser.Id, "Sign Up", "Register as a new user");
                 response.StatusCode = StatusCodes.Status200OK;
