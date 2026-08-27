@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Swap_Shop.Domain.Entities;
+using Microsoft.Extensions.Configuration;
 using SwapShop.Domain.Dtos.Request.ListingItem;
+using SwapShop.Domain.Dtos.Request.Mailing;
 using SwapShop.Domain.Dtos.Response;
 using SwapShop.Domain.Dtos.Response.FavListItems;
 using SwapShop.Domain.Dtos.Response.ListingItem;
@@ -29,6 +31,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
         private readonly ISwapShopGenericRepo<UserRoom> _userRoomRepo;
         private readonly ISwapShopGenericRepo<Room> _roomRepo;
         private readonly ILogger<AccountService> _logger;
+        private readonly IEmailServices _emailServices;
+        private readonly IConfiguration _configuration;
 
         public ListItemService(ILogger<AccountService> logger,
             ISwapShopGenericRepo<SwapListRequest> swapListRequestRepo,
@@ -38,7 +42,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             IActivityLogRepo activityLogRepo, IHelper helper,
             ISwapShopGenericRepo<User_Review_Rating> user_Review_RatingRepo,
             ISwapShopGenericRepo<SwappingProceeding> swappingProceedingRepo,
-            ISwapShopGenericRepo<UserRoom> userRoomRepo, ISwapShopGenericRepo<Room> roomRepo, ISwapShopGenericRepo<FavListItem> faveListItemRepo)
+            ISwapShopGenericRepo<UserRoom> userRoomRepo, ISwapShopGenericRepo<Room> roomRepo,
+            ISwapShopGenericRepo<FavListItem> faveListItemRepo,
+            IEmailServices emailServices, IConfiguration configuration)
         {
             _logger = logger;
             _swapListRequestRepo = swapListRequestRepo;
@@ -48,6 +54,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             _activityLogRepo = activityLogRepo;
             _helper = helper;
             _user_Review_RatingRepo = user_Review_RatingRepo;
+            _emailServices = emailServices;
+            _configuration = configuration;
             _swappingProceedingRepo = swappingProceedingRepo;
             _userRoomRepo = userRoomRepo;
             _roomRepo = roomRepo;
@@ -116,6 +124,22 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 }
                 await _activityLogRepo.AddActivitylog(userid, "List item", $"List a new item in {req.ListType} Mode");
                 await _listingItemRepo.SaveChanges();
+
+                var adminEmail = _configuration["EmailConfiguration:AdminEmail"];
+                if (!string.IsNullOrWhiteSpace(adminEmail))
+                {
+                    var emailBody = $@"<p>A new item has been listed on SwapShop and is awaiting your approval.</p>
+                        <ul>
+                            <li><strong>Item Name:</strong> {req.ItemName}</li>
+                            <li><strong>Description:</strong> {req.ItemDescription}</li>
+                            <li><strong>Estimated Amount:</strong> {req.EstimatedCurrency} {req.EstimatedAmount}</li>
+                            <li><strong>Listed By (User ID):</strong> {userid}</li>
+                        </ul>
+                        <p>Please log in to the admin panel to review and approve or reject this listing.</p>";
+                    var adminMessage = new Message(new[] { adminEmail }, "New Item Listing – Awaiting Approval", emailBody);
+                    _emailServices.SendEmail(adminMessage);
+                }
+
                 response.StatusCode = StatusCodes.Status200OK;
                 response.DisplayMessage = "Successful";
                 response.Result = "Item listed successfully awaiting admin review";
