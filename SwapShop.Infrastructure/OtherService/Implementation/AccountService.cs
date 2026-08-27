@@ -307,14 +307,14 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     response.DisplayMessage = "Error";
                     return response;
                 }
-               /* if (!checkUserExist.EmailConfirmed)
+               if (!checkUserExist.EmailConfirmed)
                 {
                     response.ErrorMessages = new List<string>() { "Please confirm your email address" };
                     response.StatusCode = 400;
                     response.DisplayMessage = "Error";
                     return response;
 
-                }*/
+                }
                 checkUserExist.LastLoginTime = DateTime.UtcNow;
                 await _accountRepo.UpdateUserInfo(checkUserExist);
                 await _activityLogRepo.AddActivitylog(checkUserExist.Id, "Sign in", "Sign in to the platform");
