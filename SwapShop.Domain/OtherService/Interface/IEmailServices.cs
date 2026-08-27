@@ -4,6 +4,6 @@ namespace SwapShop.Domain.OtherService.Interface
 {
     public interface IEmailServices
     {
-        void SendEmail(Message message);
+        Task SendEmailAsync(Message message);
     }
 }

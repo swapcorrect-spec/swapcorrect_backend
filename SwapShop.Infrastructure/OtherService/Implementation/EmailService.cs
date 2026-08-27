@@ -1,4 +1,5 @@
 ﻿using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MimeKit;
@@ -18,10 +19,10 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             _logger = logger;
         }
 
-        public void SendEmail(Message message)
+        public async Task SendEmailAsync(Message message)
         {
             var emailMessage = CreateEmailMessage(message);
-            Send(emailMessage);
+            await SendAsync(emailMessage);
         }
 
         private MimeMessage CreateEmailMessage(Message message)
@@ -34,24 +35,30 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             return emailMessage;
         }
 
-        public void Send(MimeMessage mailMessage)
+        private async Task SendAsync(MimeMessage mailMessage)
         {
             using var client = new SmtpClient();
             try
             {
-                client.Connect(_configuration["EmailConfiguration:Host"], int.Parse(_configuration["EmailConfiguration:Port"]), true);
+                var host = _configuration["EmailConfiguration:Host"];
+                var port = int.Parse(_configuration["EmailConfiguration:Port"]!);
+                var username = _configuration["EmailConfiguration:UserName"];
+                var password = _configuration["EmailConfiguration:Password"];
+
+                // port 587 + StartTls is required in containerised/cloud environments
+                await client.ConnectAsync(host, port, SecureSocketOptions.StartTls);
                 client.AuthenticationMechanisms.Remove("XOAUTH2");
-                client.Authenticate(_configuration["EmailConfiguration:UserName"], _configuration["EmailConfiguration:Password"]);
-                client.Send(mailMessage);
+                await client.AuthenticateAsync(username, password);
+                await client.SendAsync(mailMessage);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.Message, ex);
+                _logger.LogError(ex, "Failed to send email to {Recipients}", mailMessage.To);
+                throw;
             }
             finally
             {
-                client.Disconnect(true);
-                client.Dispose();
+                await client.DisconnectAsync(true);
             }
         }
     }

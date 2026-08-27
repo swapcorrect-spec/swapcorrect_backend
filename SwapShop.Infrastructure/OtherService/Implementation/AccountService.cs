@@ -197,7 +197,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     body
                 );
 
-               _emailServices.SendEmail(message);
+               await _emailServices.SendEmailAsync(message);
 
                 await _activityLogRepo.AddActivitylog(createUser.Id, "Sign Up", "Register as a new user");
                 response.StatusCode = StatusCodes.Status200OK;
@@ -667,7 +667,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 });
                 await _forgetPasswordTokenRepo.SaveChanges();
                 var message = new Message(new string[] { checkUser.Email }, "Reset Password Code", $"<p>Your reset password code is below<p><br/><h6>{generateToken}</h6><br/> <p>Please use it in your reset password page</p>");
-                _emailServices.SendEmail(message);
+                await _emailServices.SendEmailAsync(message);
                 await _activityLogRepo.AddActivitylog(checkUser.Id, "Forget Password", "Request for forget password");
                 response.DisplayMessage = "Success";
                 response.Result = "Reset password token sent to registered email";

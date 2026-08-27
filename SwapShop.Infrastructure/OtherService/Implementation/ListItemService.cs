@@ -137,7 +137,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         </ul>
                         <p>Please log in to the admin panel to review and approve or reject this listing.</p>";
                     var adminMessage = new Message(new[] { adminEmail }, "New Item Listing – Awaiting Approval", emailBody);
-                    _emailServices.SendEmail(adminMessage);
+                    await _emailServices.SendEmailAsync(adminMessage);
                 }
 
                 response.StatusCode = StatusCodes.Status200OK;
