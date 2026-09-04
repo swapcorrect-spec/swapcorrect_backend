@@ -14,6 +14,7 @@ using SwapShop.Domain.Enitities;
 using SwapShop.Domain.Enum;
 using SwapShop.Domain.OtherService.Interface;
 using SwapShop.Domain.Repository.Interface;
+using SwapShop.Infrastructure.Helper;
 
 namespace SwapShop.Infrastructure.OtherService.Implementation
 {
@@ -33,6 +34,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
         private readonly ILogger<AccountService> _logger;
         private readonly IEmailServices _emailServices;
         private readonly IConfiguration _configuration;
+        private readonly IAccountRepo _accountRepo;
 
         public ListItemService(ILogger<AccountService> logger,
             ISwapShopGenericRepo<SwapListRequest> swapListRequestRepo,
@@ -44,7 +46,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             ISwapShopGenericRepo<SwappingProceeding> swappingProceedingRepo,
             ISwapShopGenericRepo<UserRoom> userRoomRepo, ISwapShopGenericRepo<Room> roomRepo,
             ISwapShopGenericRepo<FavListItem> faveListItemRepo,
-            IEmailServices emailServices, IConfiguration configuration)
+            IEmailServices emailServices, IConfiguration configuration,
+            IAccountRepo accountRepo)
         {
             _logger = logger;
             _swapListRequestRepo = swapListRequestRepo;
@@ -56,6 +59,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             _user_Review_RatingRepo = user_Review_RatingRepo;
             _emailServices = emailServices;
             _configuration = configuration;
+            _accountRepo = accountRepo;
             _swappingProceedingRepo = swappingProceedingRepo;
             _userRoomRepo = userRoomRepo;
             _roomRepo = roomRepo;
@@ -128,14 +132,19 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 var adminEmail = _configuration["EmailConfiguration:AdminEmail"];
                 if (!string.IsNullOrWhiteSpace(adminEmail))
                 {
-                    var emailBody = $@"<p>A new item has been listed on SwapShop and is awaiting your approval.</p>
-                        <ul>
-                            <li><strong>Item Name:</strong> {req.ItemName}</li>
-                            <li><strong>Description:</strong> {req.ItemDescription}</li>
-                            <li><strong>Estimated Amount:</strong> {req.EstimatedCurrency} {req.EstimatedAmount}</li>
-                            <li><strong>Listed By (User ID):</strong> {userid}</li>
-                        </ul>
-                        <p>Please log in to the admin panel to review and approve or reject this listing.</p>";
+                    var emailBody = EmailTemplate.Build(
+                        title: "New Listing Awaiting Approval",
+                        greetingName: null,
+                        bodyHtml: "<p style=\"margin:0 0 4px 0;\">A new item has been listed on SwapCorrect and is waiting for review.</p>"
+                                  + EmailTemplate.DetailTable(
+                                      ("Item Name", req.ItemName),
+                                      ("Description", req.ItemDescription),
+                                      ("Estimated Value", $"{req.EstimatedCurrency} {req.EstimatedAmount}"),
+                                      ("Listing Type", req.ListType.ToString()),
+                                      ("Location", req.Location ?? "-"),
+                                      ("Listed By (User ID)", userid))
+                                  + "<p style=\"margin:0;\">Sign in to the admin panel to approve or reject this listing.</p>"
+                    );
                     var adminMessage = new Message(new[] { adminEmail }, "New Item Listing – Awaiting Approval", emailBody);
                     await _emailServices.SendEmailAsync(adminMessage);
                 }
@@ -1386,6 +1395,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 Items.ReviewStage = review.ToString();
                 _listingItemRepo.Update(Items);
                 await _listingItemRepo.SaveChanges();
+
+                await NotifyOwnerOfReviewOutcome(Items, review, rejectionNote);
+
                 response.Result = $"Item reveiw to {review} successfully";
                 response.StatusCode = 200;
                 response.DisplayMessage = "Success";
@@ -1398,6 +1410,58 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 response.StatusCode = 500;
                 response.DisplayMessage = "Error";
                 return response;
+            }
+        }
+
+        private async Task NotifyOwnerOfReviewOutcome(ListingItem item, ListingReiviewStage review, string? rejectionNote)
+        {
+            // email failures must never roll back a completed review
+            try
+            {
+                var owner = await _accountRepo.FindUserByIdAsync(item.UserId);
+                if (owner == null || string.IsNullOrWhiteSpace(owner.Email))
+                    return;
+
+                var isApproved = review == ListingReiviewStage.Approved;
+                var listingUrl = $"{_configuration["FrontendBaseUrl"]}listing/{item.Id}";
+
+                var details = EmailTemplate.DetailTable(
+                    ("Item Name", item.ItemName),
+                    ("Estimated Value", $"{item.EstimatedCurrency} {item.EstimatedAmount}"),
+                    ("Status", review.ToString()));
+
+                string bodyHtml;
+                string subject;
+
+                if (isApproved)
+                {
+                    subject = "Your Listing Has Been Approved";
+                    bodyHtml = "<p style=\"margin:0 0 4px 0;\">Good news &mdash; your listing has been reviewed and approved. It is now live and visible to other users.</p>"
+                               + details
+                               + EmailTemplate.Callout("Approved", "Your item is now available for swap requests.")
+                               + "<p style=\"margin:0;\">You can view or manage your listing from your dashboard at any time.</p>";
+                }
+                else
+                {
+                    subject = "Your Listing Was Not Approved";
+                    bodyHtml = "<p style=\"margin:0 0 4px 0;\">Your listing has been reviewed and unfortunately it was not approved.</p>"
+                               + details
+                               + EmailTemplate.Callout("Reason for rejection", rejectionNote ?? "No reason was provided.", isNegative: true)
+                               + "<p style=\"margin:0;\">Please update your listing to address the points above and submit it again for review.</p>";
+                }
+
+                var message = new Message(new[] { owner.Email }, subject, EmailTemplate.Build(
+                    title: subject,
+                    greetingName: owner.FirstName,
+                    bodyHtml: bodyHtml,
+                    ctaText: "View Listing",
+                    ctaUrl: listingUrl));
+
+                await _emailServices.SendEmailAsync(message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to notify owner of review outcome for listing {ListingId}", item.Id);
             }
         }
 

@@ -43,7 +43,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             var token = new JwtSecurityToken(
                 issuer: _configuration["JWT:ValidIssuer"],
                 audience: _configuration["JWT:ValidAudience"],
-                expires: DateTime.Now.AddMinutes(5),
+                expires: DateTime.UtcNow.AddMinutes(2),
                 claims: authClaims,
                 signingCredentials: new SigningCredentials(authSigninKey, SecurityAlgorithms.HmacSha384Signature));
             var Jwttoken = new JwtSecurityTokenHandler().WriteToken(token);

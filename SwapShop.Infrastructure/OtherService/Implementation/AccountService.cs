@@ -13,6 +13,7 @@ using SwapShop.Domain.Enitities;
 using SwapShop.Domain.Enum;
 using SwapShop.Domain.OtherService.Interface;
 using SwapShop.Domain.Repository.Interface;
+using SwapShop.Infrastructure.Helper;
 
 namespace SwapShop.Infrastructure.OtherService.Implementation
 {
@@ -137,59 +138,15 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
 
                 var baseUrl = $"{_configuration["FrontendBaseUrl"]}verify?token={GenerateConfirmEmailToken.Token}&email={createUser.Email}";
 
-                var body = $@"
-                                <!DOCTYPE html>
-                                       <html>
-                                        <head>
-                                        <meta charset=""UTF-8"" />
-                                        <title>Email Confirmation</title>
-                                        <style>
-                                            body {{
-                                              font-family: Arial, sans-serif;
-                                              background-color: #f9f9f9;
-                                              color: #333;
-                                              padding: 20px;
-                                            }}
-                                            .container {{
-                                              background-color: #fff;
-                                              border-radius: 8px;
-                                              padding: 20px;
-                                              max-width: 600px;
-                                              margin: 0 auto;
-                                              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                                            }}
-                                            .btn {{
-                                              display: inline-block;
-                                              background-color: #007BFF;
-                                              color: #fff !important;
-                                              padding: 10px 20px;
-                                              margin-top: 20px;
-                                              border-radius: 5px;
-                                              text-decoration: none;
-                                              font-weight: bold;
-                                            }}
-                                            .btn:hover {{
-                                              background-color: #0056b3;
-                                            }}
-                                            p {{
-                                              line-height: 1.5;
-                                            }}
-                                          </style>
-                                        </head>
-                                        <body>
-                                          <div class=""container"">
-                                            <h2>Email Confirmation</h2>
-                                            <p>Hello {createUser.FirstName},</p>
-                                            <p>Thank you for registering. Please confirm your email address by clicking the button below:</p>
-                                            <p>
-                                              <a href=""{baseUrl}"" class=""btn"">Confirm Email</a>
-                                            </p>
-                                            <p>If the button above doesn’t work, copy and paste the following link into your browser:</p>
-                                            <p><a href=""{baseUrl}"">{baseUrl}</a></p>
-                                            <p>Best regards,<br/>The Team</p>
-                                          </div>
-                                        </body>
-                                        </html>";
+                var body = EmailTemplate.Build(
+                    title: "Confirm Your Email",
+                    greetingName: createUser.FirstName,
+                    bodyHtml: "<p style=\"margin:0 0 14px 0;\">Thanks for signing up. Please confirm your email address to activate your account and start swapping.</p>"
+                              + EmailTemplate.CodeBlock(GenerateConfirmEmailToken.Token.ToString())
+                              + "<p style=\"margin:0;\">Enter the code above on the verification page, or simply click the button below.</p>",
+                    ctaText: "Confirm Email",
+                    ctaUrl: baseUrl
+                );
 
                 var message = new Message(
                     new[] { createUser.Email },
@@ -584,6 +541,13 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     response.DisplayMessage = "Error";
                     return response;
                 }
+                if (findUser.EmailConfirmed)
+                {
+                    response.StatusCode = StatusCodes.Status200OK;
+                    response.DisplayMessage = "Success";
+                    response.Result = "Email already confirmed";
+                    return response;
+                }
                 var retrieveToken = await _accountRepo.retrieveUserToken(findUser.Id);
                 if (retrieveToken == null)
                 {
@@ -599,14 +563,6 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     response.StatusCode = 400;
                     return response;
                 }
-                var deleteToken = await _accountRepo.DeleteUserToken(retrieveToken);
-                if (deleteToken == false)
-                {
-                    response.ErrorMessages = new List<string>() { "Error removing user token" };
-                    response.DisplayMessage = "Error";
-                    response.StatusCode = 400;
-                    return response;
-                }
                 findUser.EmailConfirmed = true;
                 var updateUserConfirmState = await _accountRepo.UpdateUserInfo(findUser);
                 if (updateUserConfirmState == false)
@@ -616,6 +572,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     response.StatusCode = 400;
                     return response;
                 }
+                // token is only discarded after the account is confirmed, so a failure here is retryable
+                await _accountRepo.DeleteUserToken(retrieveToken);
                 await _activityLogRepo.AddActivitylog(findUser.Id, "Confirm Email", "Confirm your email address");
                 response.StatusCode = StatusCodes.Status200OK;
                 response.DisplayMessage = "Success";
@@ -666,7 +624,14 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     userid = checkUser.Id
                 });
                 await _forgetPasswordTokenRepo.SaveChanges();
-                var message = new Message(new string[] { checkUser.Email }, "Reset Password Code", $"<p>Your reset password code is below<p><br/><h6>{generateToken}</h6><br/> <p>Please use it in your reset password page</p>");
+                var resetBody = EmailTemplate.Build(
+                    title: "Reset Your Password",
+                    greetingName: checkUser.FirstName,
+                    bodyHtml: "<p style=\"margin:0 0 14px 0;\">We received a request to reset your password. Use the code below to continue.</p>"
+                              + EmailTemplate.CodeBlock(generateToken.ToString())
+                              + "<p style=\"margin:0;\">If you did not request a password reset, you can safely ignore this email &mdash; your password will remain unchanged.</p>"
+                );
+                var message = new Message(new string[] { checkUser.Email }, "Reset Password Code", resetBody);
                 await _emailServices.SendEmailAsync(message);
                 await _activityLogRepo.AddActivitylog(checkUser.Id, "Forget Password", "Request for forget password");
                 response.DisplayMessage = "Success";

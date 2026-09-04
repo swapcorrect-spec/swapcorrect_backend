@@ -65,6 +65,9 @@ namespace SwapSwap.Api.MappingProfile
            ValidateIssuer = true,
            ValidateAudience = true,
            ValidateIssuerSigningKey = true,
+           ValidateLifetime = true,
+           // without this the default 5-minute skew would outlive the 2-minute token
+           ClockSkew = TimeSpan.Zero,
            ValidIssuer = configuration["JWT:ValidIssuer"],
            ValidAudience = configuration["JWT:ValidAudience"],
            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:Secret"]))
