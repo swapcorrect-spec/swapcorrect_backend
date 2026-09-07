@@ -2,8 +2,9 @@
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 
-# Set the PORT environment variable
-ENV ASPNETCORE_URLS=http://+:5000
+# Default port/environment, both overridable at container runtime (e.g. Render's dynamic $PORT)
+ENV PORT=5000
+ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 5000
 
 # Use the official ASP.NET Core SDK as a build image
@@ -33,4 +34,5 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
-ENTRYPOINT ["dotnet", "SwapShop.Api.dll"]
+# Shell form so $PORT is resolved at container start, not baked in at build time
+ENTRYPOINT ["/bin/sh", "-c", "ASPNETCORE_URLS=http://+:${PORT} dotnet SwapShop.Api.dll"]

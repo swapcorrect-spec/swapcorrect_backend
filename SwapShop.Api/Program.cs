@@ -6,6 +6,11 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// CreateBuilder already layers appsettings.json -> appsettings.{Environment}.json -> env vars,
+// so any setting can be overridden at deploy time, e.g. EmailConfiguration__Password or
+// ConnectionStrings__ProdDB (double underscore maps to the ':' section separator).
+builder.Configuration.AddEnvironmentVariables();
+
 // Add services to the container.
 builder.Services.ConfigureLibrary(builder.Configuration);
 builder.Services.ConfigureDb(builder.Configuration);
