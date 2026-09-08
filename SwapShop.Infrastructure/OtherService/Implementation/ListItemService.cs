@@ -1483,6 +1483,10 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     listing.IsFlagged = isFlagged;
                     _listingItemRepo.Update(listing);
                     await _listingItemRepo.SaveChanges();
+                    if (isFlagged)
+                    {
+                        await NotifyUserOfFlagAsync(listing.UserId, "Listing", listing.ItemName, contentId);
+                    }
                     response.Result = isFlagged ? "Listing flagged successfully" : "Listing unflagged successfully";
                 }
                 else
@@ -1498,6 +1502,10 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     swap.IsFlagged = isFlagged;
                     _swappingProceedingRepo.Update(swap);
                     await _swappingProceedingRepo.SaveChanges();
+                    if (isFlagged)
+                    {
+                        await NotifyUserOfFlagAsync(swap.Userid, "Swap", swap.ListId, contentId);
+                    }
                     response.Result = isFlagged ? "Swap flagged successfully" : "Swap unflagged successfully";
                 }
 
@@ -1512,6 +1520,38 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 response.StatusCode = 500;
                 response.DisplayMessage = "Error";
                 return response;
+            }
+        }
+
+        private async Task NotifyUserOfFlagAsync(string userId, string contentType, string contentName, string contentId)
+        {
+            try
+            {
+                var user = await _accountRepo.FindUserByIdAsync(userId);
+                if (user == null || string.IsNullOrWhiteSpace(user.Email))
+                    return;
+
+                var body = EmailTemplate.Build(
+                    title: $"Your {contentType} Has Been Flagged",
+                    greetingName: user.FirstName,
+                    bodyHtml: $"<p style=\"margin:0 0 4px 0;\">Your {contentType.ToLowerInvariant()} has been flagged by our moderation team for review.</p>"
+                              + EmailTemplate.DetailTable(
+                                  ($"{contentType} ID", contentId),
+                                  ("Name or Reference", contentName))
+                              + EmailTemplate.Callout(
+                                  "What happens next",
+                                  "Our team will review the content. If action is required, we will contact you with more details.",
+                                  isNegative: true)
+                              + "<p style=\"margin:0;\">Please ensure that your content follows the SwapCorrect community guidelines.</p>");
+
+                await _emailServices.SendEmailAsync(new Message(
+                    new[] { user.Email },
+                    $"Your {contentType} Has Been Flagged",
+                    body));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to notify user {UserId} that {ContentType} {ContentId} was flagged", userId, contentType, contentId);
             }
         }
 
