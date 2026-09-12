@@ -53,11 +53,6 @@ namespace SwapShop.Infrastructure.Helper
 
             return $@"<!DOCTYPE html>
 <html lang=""en"">
-<head>
-  <meta charset=""UTF-8"" />
-  <meta name=""viewport"" content=""width=device-width,initial-scale=1"" />
-  <title>{title}</title>
-</head>
 <body style=""margin:0;padding:0;background-color:{PageBackground};"">
   <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0""
          style=""background-color:{PageBackground};padding:32px 12px;"">
@@ -116,10 +111,15 @@ namespace SwapShop.Infrastructure.Helper
 
         /// <summary>Renders a highlighted numeric/alphanumeric code block.</summary>
         public static string CodeBlock(string code) =>
-            $@"<div style=""background-color:#F1F5F9;border:1px dashed {BorderColor};border-radius:8px;
-                          padding:18px;text-align:center;margin:20px 0;
-                          font-family:Consolas,Menlo,monospace;font-size:28px;font-weight:700;
-                          letter-spacing:6px;color:{TextColor};"">{code}</div>";
+            $@"<table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0""
+                        style=""margin:20px 0;background-color:#F1F5F9;border:1px dashed {BorderColor};
+                               border-radius:8px;"">
+                <tr>
+                  <td align=""center"" style=""padding:18px;font-family:Consolas,Menlo,monospace;
+                             font-size:28px;line-height:34px;font-weight:700;letter-spacing:6px;
+                             color:{TextColor};"">{code}</td>
+                </tr>
+              </table>";
 
         /// <summary>Renders a two-column label/value detail table.</summary>
         public static string DetailTable(params (string Label, string Value)[] rows)
@@ -145,13 +145,28 @@ namespace SwapShop.Infrastructure.Helper
             var accent = isNegative ? "#DC2626" : "#059669";
             var background = isNegative ? "#FEF2F2" : "#ECFDF5";
 
-            return $@"<div style=""background-color:{background};border-left:4px solid {accent};
-                                border-radius:6px;padding:16px 18px;margin:18px 0;"">
-                        <div style=""font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;
-                                    font-weight:700;color:{accent};margin-bottom:6px;"">{heading}</div>
-                        <div style=""font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;
-                                    line-height:22px;color:{TextColor};"">{message}</div>
-                      </div>";
+            return $@"<table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0""
+                        style=""margin:18px 0;background-color:{background};border-left:4px solid {accent};
+                               border-radius:6px;"">
+                        <tr>
+                          <td style=""padding:16px 18px;"">
+                            <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"">
+                              <tr>
+                                <td style=""padding-bottom:6px;font-family:Segoe UI,Helvetica,Arial,sans-serif;
+                                           font-size:14px;line-height:20px;font-weight:700;color:{accent};"">
+                                  {heading}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style=""font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;
+                                           line-height:22px;color:{TextColor};"">
+                                  {message}
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>";
         }
     }
 }

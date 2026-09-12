@@ -990,9 +990,6 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
 
                 await _activityLogRepo.AddActivitylog(checkUserExist.Id, "Sign Up", "Register as a new user");
 
-                // var message = new Message(new string[] { checkUserExist.Email }, "Confirm Email Token", $"<p>Your confirm email code is below<p><h6>{GenerateConfirmEmailToken.Token}</h6>");
-                // _emailServices.SendEmail(message);
-
             }
             catch (InvalidJwtException)
             {
