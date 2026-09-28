@@ -589,6 +589,70 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 return response;
             }
         }
+        public async Task<ResponseDto<string>> ResendConfirmationEmail(string email)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var user = await _accountRepo.FindUserByEmailAsync(email);
+                if (user == null)
+                {
+                    response.ErrorMessages = new List<string> { "There is no user with the email provided" };
+                    response.StatusCode = StatusCodes.Status404NotFound;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                if (user.EmailConfirmed)
+                {
+                    response.StatusCode = StatusCodes.Status200OK;
+                    response.DisplayMessage = "Success";
+                    response.Result = "Email already confirmed";
+                    return response;
+                }
+
+                var existingToken = await _accountRepo.retrieveUserToken(user.Id);
+                if (existingToken != null)
+                    await _accountRepo.DeleteUserToken(existingToken);
+
+                var token = _accountRepo.GenerateConfirmEmailToken();
+                var savedToken = await _accountRepo.SaveGenerateConfirmEmailToken(new ConfirmEmailToken
+                {
+                    Token = token,
+                    UserId = user.Id
+                });
+                if (savedToken == null)
+                {
+                    response.ErrorMessages = new List<string> { "Error generating confirmation token" };
+                    response.StatusCode = StatusCodes.Status500InternalServerError;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+
+                var verifyUrl = $"{_configuration["FrontendBaseUrl"]}verify?token={token}&email={Uri.EscapeDataString(user.Email)}";
+                var body = EmailTemplate.Build(
+                    title: "Confirm Your Email",
+                    greetingName: user.FirstName,
+                    bodyHtml: "<p style=\"margin:0 0 14px 0;\">Please confirm your email address to activate your account.</p>"
+                              + EmailTemplate.CodeBlock(token.ToString()),
+                    ctaText: "Confirm Email",
+                    ctaUrl: verifyUrl);
+                await _emailServices.SendEmailAsync(new Message(new[] { user.Email }, "Confirm Your Email", body));
+
+                response.StatusCode = StatusCodes.Status200OK;
+                response.DisplayMessage = "Success";
+                response.Result = "Confirmation email sent";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resending confirmation email");
+                response.ErrorMessages = new List<string> { "Error resending confirmation email" };
+                response.StatusCode = StatusCodes.Status500InternalServerError;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+
         public async Task<ResponseDto<string>> ForgotPassword(string Email)
         {
             var response = new ResponseDto<string>();

@@ -4,3 +4,46 @@ GET {{SwapShop.Api_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+POST {{SwapShop.Api_HostAddress}}/api/auth/user/resend-forget-password-email
+Content-Type: application/json
+
+{"email":"user@example.com"}
+
+###
+
+POST {{SwapShop.Api_HostAddress}}/api/auth/user/resend-confirmation-email
+Content-Type: application/json
+
+{"email":"user@example.com"}
+
+###
+
+### Close a swap proceeding (does not close the listing)
+POST {{SwapShop.Api_HostAddress}}/api/listing_item/close/swap_now?swapId=SWAP_PROCEEDING_ID
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Accept: application/json
+
+### Success response
+# {
+#   "statusCode": 200,
+#   "displayMessage": "Success",
+#   "result": "Swap proceeding closed",
+#   "errorMessages": null
+# }
+
+### Not found response
+# {
+#   "statusCode": 404,
+#   "displayMessage": "Error",
+#   "result": null,
+#   "errorMessages": ["Swap proceeding not found"]
+# }
+
+### Forbidden response when the caller is not a participant
+# {
+#   "statusCode": 403,
+#   "displayMessage": "Error",
+#   "result": null,
+#   "errorMessages": ["You are not a participant in this swap proceeding"]
+# }

@@ -1,8 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Austistic.Core.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SwapShop.Domain.Dtos.Response;
 using SwapShop.Domain.Dtos.Response.FavListItems;
 using SwapShop.Domain.Enitities;
+using SwapShop.Domain.Enum;
 using SwapShop.Domain.OtherService.Interface;
 using SwapShop.Domain.Repository.Interface;
 
@@ -12,12 +14,18 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
     {
 
         private readonly ISwapShopGenericRepo<FavListItem> _faveListItemRepo;
+        private readonly ISwapShopGenericRepo<SwappingProceeding> _swappingProceedingRepo;
+        private readonly ISwapShopGenericRepo<UserRoom> _userRoomRepo;
         private readonly ILogger<FavListItemService> _logger;
         public FavListItemService(ISwapShopGenericRepo<FavListItem> faveListItemRepo, 
-            ILogger<FavListItemService> logger)
+            ILogger<FavListItemService> logger,
+            ISwapShopGenericRepo<SwappingProceeding> swappingProceedingRepo,
+            ISwapShopGenericRepo<UserRoom> userRoomRepo)
         {
             _faveListItemRepo = faveListItemRepo;
             _logger = logger;
+            _swappingProceedingRepo = swappingProceedingRepo;
+            _userRoomRepo = userRoomRepo;
         }
         public async Task<ResponseDto<string>> AddToFavoritesAsync(string userId, string listingId)
         {
@@ -84,6 +92,33 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     }).ToList(),
                     SwapListRequest = u.List.SwapListRequest.Select(f => f.ItemNeededName).ToList()
                 }).ToListAsync();
+                var listingIds = retrieveFavList.Select(item => item.ListingId).ToList();
+                var proceedings = await _swappingProceedingRepo.GetQueryable().AsNoTracking()
+                    .Where(proceeding => listingIds.Contains(proceeding.ListId)
+                        && (proceeding.Userid == userId || proceeding.List.UserId == userId)
+                        && proceeding.Status != SwapProceedingStatus.Closed.ToString()
+                        && proceeding.Status != SwapProceedingStatus.Swapped.ToString())
+                    .Select(proceeding => new { proceeding.ListId, proceeding.Userid, OwnerId = proceeding.List.UserId })
+                    .ToListAsync();
+                var otherUserIds = proceedings.Select(proceeding => proceeding.Userid == userId ? proceeding.OwnerId : proceeding.Userid)
+                    .Distinct().ToList();
+                var rooms = await _userRoomRepo.GetQueryable().AsNoTracking()
+                    .Where(room => (room.UserId == userId && otherUserIds.Contains(room.SwapperId))
+                        || (room.SwapperId == userId && otherUserIds.Contains(room.UserId)))
+                    .Select(room => new { room.UserId, room.SwapperId, room.Room.RoomName })
+                    .ToListAsync();
+                var roomsByUser = rooms.ToDictionary(room => room.UserId == userId ? room.SwapperId : room.UserId, room => room.RoomName);
+                var roomsByListing = proceedings
+                    .Where(proceeding => roomsByUser.ContainsKey(proceeding.Userid == userId ? proceeding.OwnerId : proceeding.Userid))
+                    .GroupBy(proceeding => proceeding.ListId)
+                    .Select(group => new { group.Key, Rooms = group.Select(proceeding => roomsByUser[proceeding.Userid == userId ? proceeding.OwnerId : proceeding.Userid]).Distinct().ToList() })
+                    .Where(group => group.Rooms.Count == 1)
+                    .ToDictionary(group => group.Key, group => group.Rooms[0]);
+
+                foreach (var item in retrieveFavList)
+                    if (roomsByListing.TryGetValue(item.ListingId, out var roomName))
+                        item.RoomName = roomName;
+
                 response.Result = retrieveFavList;
                 response.StatusCode = 200;
                 response.DisplayMessage = "Success";

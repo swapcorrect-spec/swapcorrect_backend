@@ -3,6 +3,7 @@
     public class FavListItemResponseDto
     {
         public string ListingId { get; set; }
+        public string? RoomName { get; set; }
         public string UserId { get; set; }
         public string ListType { get; set; }
         public string ItemName { get; set; }

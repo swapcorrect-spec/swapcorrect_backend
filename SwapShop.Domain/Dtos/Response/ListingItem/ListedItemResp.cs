@@ -10,9 +10,11 @@ namespace SwapShop.Domain.Dtos.Response.ListingItem
     public class ListedItemResp
     {
         public string ListingId { get; set; }
+        public string? RoomName { get; set; }
         public string UserId { get; set; }
         public string ListType { get; set; }
         public string ItemName { get; set; }
+        public string? Location { get; set; }
         public string EstimatedCurrency { get; set; }
         public double Rating { get; set; }
         public int SwapCount { get; set; }

@@ -18,7 +18,7 @@ namespace SwapShop.Domain.Dtos.Request.ListingItem
         public string ListedItem {  get; set; }
         public string SwapperRequestItem {  get; set; }
          public string Status {  get; set; }
-         public string RoomName {  get; set; }
+         public string? RoomName {  get; set; }
          public DateTime CreatedOn {  get; set; }
          public DateTime lastActivity {  get; set; }
     }

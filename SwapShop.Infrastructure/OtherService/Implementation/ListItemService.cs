@@ -317,7 +317,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     candidateItems = await _listingItemRepo.GetQueryable()
                         .AsNoTracking()
                         .Where(li => validTopUserIds.Contains(li.UserId))
-                        .Where(li => li.ReviewStage == ListingReiviewStage.Approved.ToString())
+                        .Where(li => li.ReviewStage == ListingReiviewStage.Approved.ToString()
+                            && li.SwapListStatus != SwapListingStatus.Closed.ToString()
+                            && li.SwapListStatus != SwapListingStatus.Swapped.ToString())
                         .Where(li => string.IsNullOrEmpty(userId) || li.UserId != userId)
                         .OrderByDescending(li => li.Created)
                         .Select(u => new ListedItemResp
@@ -354,7 +356,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     {
                         candidateItems = await _listingItemRepo.GetQueryable()
                             .AsNoTracking()
-                            .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString())
+                            .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString()
+                                && u.SwapListStatus != SwapListingStatus.Closed.ToString()
+                                && u.SwapListStatus != SwapListingStatus.Swapped.ToString())
                             .Where(u => string.IsNullOrEmpty(userId) || u.UserId != userId)
                             .OrderByDescending(u => u.Created)
                             .Select(u => new ListedItemResp
@@ -388,7 +392,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     }
                 }
 
-                response.Result = candidateItems ?? new List<ListedItemResp>();
+                candidateItems ??= new List<ListedItemResp>();
+                await AddActiveRoomNames(candidateItems, userId);
+                response.Result = candidateItems;
                 response.StatusCode = 200;
                 response.DisplayMessage = "Success";
             }
@@ -401,6 +407,45 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             }
 
             return response;
+        }
+
+        private async Task AddActiveRoomNames(IReadOnlyCollection<ListedItemResp> items, string? userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || items.Count == 0)
+                return;
+
+            var listingIds = items.Select(item => item.ListingId).ToList();
+            var proceedings = await _swappingProceedingRepo.GetQueryable()
+                .AsNoTracking()
+                .Where(proceeding => listingIds.Contains(proceeding.ListId)
+                    && (proceeding.Userid == userId || proceeding.List.UserId == userId)
+                    && proceeding.Status != SwapProceedingStatus.Closed.ToString()
+                    && proceeding.Status != SwapProceedingStatus.Swapped.ToString())
+                .Select(proceeding => new { proceeding.ListId, proceeding.Userid, OwnerId = proceeding.List.UserId })
+                .ToListAsync();
+
+            if (proceedings.Count == 0)
+                return;
+
+            var otherUserIds = proceedings.Select(proceeding => proceeding.Userid == userId ? proceeding.OwnerId : proceeding.Userid)
+                .Distinct().ToList();
+            var rooms = await _userRoomRepo.GetQueryable().AsNoTracking()
+                .Where(room => (room.UserId == userId && otherUserIds.Contains(room.SwapperId))
+                    || (room.SwapperId == userId && otherUserIds.Contains(room.UserId)))
+                .Select(room => new { room.UserId, room.SwapperId, room.Room.RoomName })
+                .ToListAsync();
+
+            var roomsByUser = rooms.ToDictionary(room => room.UserId == userId ? room.SwapperId : room.UserId, room => room.RoomName);
+            var roomsByListing = proceedings
+                .Where(proceeding => roomsByUser.ContainsKey(proceeding.Userid == userId ? proceeding.OwnerId : proceeding.Userid))
+                .GroupBy(proceeding => proceeding.ListId)
+                .Select(group => new { group.Key, Rooms = group.Select(proceeding => roomsByUser[proceeding.Userid == userId ? proceeding.OwnerId : proceeding.Userid]).Distinct().ToList() })
+                .Where(group => group.Rooms.Count == 1)
+                .ToDictionary(group => group.Key, group => group.Rooms[0]);
+
+            foreach (var item in items)
+                if (roomsByListing.TryGetValue(item.ListingId, out var roomName))
+                    item.RoomName = roomName;
         }
 
         public async Task<ResponseDto<List<ListedItemResp>>> GetItemByUserPreviousWantItem(string? userId, int limit)
@@ -435,7 +480,10 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         var approvedItems = await _listingItemRepo
                             .GetQueryable()
                             .AsNoTracking()
-                            .Where(li => li.ReviewStage == ListingReiviewStage.Approved.ToString() && li.UserId != userId)
+                            .Where(li => li.ReviewStage == ListingReiviewStage.Approved.ToString()
+                                && li.SwapListStatus != SwapListingStatus.Closed.ToString()
+                                && li.SwapListStatus != SwapListingStatus.Swapped.ToString()
+                                && li.UserId != userId)
                             .OrderByDescending(u => u.Created)
                             .Select(u => new ListedItemResp
                             {
@@ -485,7 +533,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     candidateItems = await _listingItemRepo
                         .GetQueryable()
                         .AsNoTracking()
-                        .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString() &&
+                        .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString()
+                                    && u.SwapListStatus != SwapListingStatus.Closed.ToString()
+                                    && u.SwapListStatus != SwapListingStatus.Swapped.ToString() &&
                                     (string.IsNullOrEmpty(userId) || u.UserId != userId))
                         .OrderByDescending(u => u.Created)
                         .Select(u => new ListedItemResp
@@ -518,7 +568,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         .ToListAsync();
                 }
 
-                response.Result = candidateItems ?? new List<ListedItemResp>();
+                candidateItems ??= new List<ListedItemResp>();
+                await AddActiveRoomNames(candidateItems, userId);
+                response.Result = candidateItems;
                 response.StatusCode = 200;
                 response.DisplayMessage = "Success";
             }
@@ -543,7 +595,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 var candidateItems = await _listingItemRepo
                     .GetQueryable()
                     .AsNoTracking()
-                    .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString() &&
+                    .Where(u => u.ReviewStage == ListingReiviewStage.Approved.ToString()
+                                && u.SwapListStatus != SwapListingStatus.Closed.ToString()
+                                && u.SwapListStatus != SwapListingStatus.Swapped.ToString() &&
                                 u.Category.CategoryName.ToLower() == "electronics" &&
                                 (string.IsNullOrEmpty(userId) || u.UserId != userId))
                     .OrderByDescending(u => u.Created)
@@ -577,7 +631,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     .Take(limit)
                     .ToListAsync();
 
-                response.Result = candidateItems ?? new List<ListedItemResp>();
+                await AddActiveRoomNames(candidateItems, userId);
+                response.Result = candidateItems;
                 response.StatusCode = 200;
                 response.DisplayMessage = "Success";
             }
@@ -601,7 +656,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 var candidateItems = await _listingItemRepo
                     .GetQueryable()
                     .AsNoTracking()
-                    .Where(u => u.Id == listingId)
+                    .Where(u => u.Id == listingId &&
+                                (u.SwapListStatus != SwapListingStatus.Closed.ToString() || u.UserId == userId))
 
                     .Select(u => new ListedItemResp
                     {
@@ -647,8 +703,13 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 {
                     avgRate = rateUser.Average(r => (double)r.RateScore);
                 }
-                candidateItems.SwapCount = swappCount;
-                candidateItems.Rating = avgRate;
+                if (candidateItems != null)
+                    await AddActiveRoomNames(new[] { candidateItems }, userId);
+                if (candidateItems != null)
+                {
+                    candidateItems.SwapCount = swappCount;
+                    candidateItems.Rating = avgRate;
+                }
                 response.Result = candidateItems;
                 response.StatusCode = 200;
                 response.DisplayMessage = "Success";
@@ -700,6 +761,53 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             return response;
         }
 
+        public async Task<ResponseDto<string>> CloseListing(string userId, string listingId)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var listing = await _listingItemRepo.GetByIdAsync(listingId);
+                if (listing == null)
+                {
+                    response.ErrorMessages = new List<string> { "Invalid listed item" };
+                    response.StatusCode = StatusCodes.Status404NotFound;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                if (listing.UserId != userId)
+                {
+                    response.ErrorMessages = new List<string> { "You can only close your own listing" };
+                    response.StatusCode = StatusCodes.Status403Forbidden;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                if (listing.SwapListStatus == SwapListingStatus.Closed.ToString())
+                {
+                    response.StatusCode = StatusCodes.Status200OK;
+                    response.DisplayMessage = "Success";
+                    response.Result = "Listing is already closed";
+                    return response;
+                }
+
+                listing.SwapListStatus = SwapListingStatus.Closed.ToString();
+                _listingItemRepo.Update(listing);
+                await _listingItemRepo.SaveChanges();
+
+                response.StatusCode = StatusCodes.Status200OK;
+                response.DisplayMessage = "Success";
+                response.Result = "Listing closed successfully";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error closing listing {ListingId}", listingId);
+                response.ErrorMessages = new List<string> { "Error in closing listing" };
+                response.StatusCode = StatusCodes.Status500InternalServerError;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+
         public async Task<ResponseDto<PaginatedResult<ListedItemResp>>> SearchpaginatedListing(string? userId, string? listinguserId, string? searhParam, 
             string? categoryId, string? location, decimal lowestRange, decimal highestRange, ListingDateFilter listingDate, int pageNumber, int perpageSize)
         {
@@ -721,7 +829,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     .Include(x => x.Media)
                     .Include(x => x.SwapListRequest)
                     .Include(x => x.favListItems)
-                    .Where(x => x.SwapListStatus != SwapListingStatus.Swapped.ToString());
+                    .Where(x => x.SwapListStatus != SwapListingStatus.Swapped.ToString()
+                                && x.SwapListStatus != SwapListingStatus.Closed.ToString());
 
                 // filters
                 if (!string.IsNullOrWhiteSpace(categoryId))
@@ -739,7 +848,10 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         (x.Category != null && x.Category.CategoryName.Contains(searhParam)));
 
                 if (!string.IsNullOrWhiteSpace(location))
-                    query = query.Where(x => x.Location != null && x.Location.Contains(location));
+                {
+                    var normalizedLocation = location.Trim().ToLower();
+                    query = query.Where(x => x.Location != null && x.Location.Trim().ToLower().Contains(normalizedLocation));
+                }
 
                 if (lowestRange > 0)
                     query = query.Where(x => (decimal)x.EstimatedAmount >= lowestRange);
@@ -787,6 +899,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         FullName = u.User != null ? (u.User.FirstName + " " + u.User.LastName).Trim() : null,
                         ItemCondition = u.ItemCondition,
                         ItemName = u.ItemName,
+                        Location = u.Location,
                         ListType = u.ListType,
                         PhoneNumber = u.User != null ? u.User.PhoneNumber : null,
                         ProfilePicture = u.User != null ? u.User.ProfilePicture : null,
@@ -803,6 +916,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     })
                     .ToListAsync();
 
+                await AddActiveRoomNames(candidateItems, userId);
                 var data = new PaginatedResult<ListedItemResp>
                 {
                     TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
@@ -864,7 +978,10 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         (x.Category != null && x.Category.CategoryName.Contains(searhParam)));
 
                 if (!string.IsNullOrWhiteSpace(location))
-                    query = query.Where(x => x.Location != null && x.Location.Contains(location));
+                {
+                    var normalizedLocation = location.Trim().ToLower();
+                    query = query.Where(x => x.Location != null && x.Location.Trim().ToLower().Contains(normalizedLocation));
+                }
 
                 if (lowestRange > 0)
                     query = query.Where(x => (decimal)x.EstimatedAmount >= lowestRange);
@@ -912,6 +1029,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         FullName = u.User != null ? (u.User.FirstName + " " + u.User.LastName).Trim() : null,
                         ItemCondition = u.ItemCondition,
                         ItemName = u.ItemName,
+                        Location = u.Location,
                         ListType = u.ListType,
                         PhoneNumber = u.User != null ? u.User.PhoneNumber : null,
                         ProfilePicture = u.User != null ? u.User.ProfilePicture : null,
@@ -928,6 +1046,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     })
                     .ToListAsync();
 
+                await AddActiveRoomNames(candidateItems, userId);
                 var data = new PaginatedResult<ListedItemResp>
                 {
                     TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
@@ -955,7 +1074,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             }
         }
         public async Task<ResponseDto<PaginatedResult<SwapProceedingResp>>> SearchpaginatedListingSwap( string? listinguserId, string? searhParam,
-            SwapListingEnumStatus swapListingStatus, ListingDateFilter listingDate, int pageNumber, int perpageSize)
+            SwapListingEnumStatus swapListingStatus, ListingDateFilter listingDate, int pageNumber, int perpageSize, string? currentUserId)
         {
             var response = new ResponseDto<PaginatedResult<SwapProceedingResp>>();
 
@@ -1042,6 +1161,33 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                         visitorName = u.User.FirstName + " " + u.User.LastName,
                     }).OrderByDescending(u => u.CreatedOn)
                     .ToListAsync();
+
+                if (!string.IsNullOrWhiteSpace(currentUserId))
+                {
+                    var otherUserIds = candidateItems
+                        .Where(item => item.Status != SwapProceedingStatus.Closed.ToString()
+                            && item.Status != SwapProceedingStatus.Swapped.ToString()
+                            && (item.visitorUserId == currentUserId || item.swapperUserId == currentUserId))
+                        .Select(item => item.visitorUserId == currentUserId ? item.swapperUserId : item.visitorUserId)
+                        .Distinct().ToList();
+
+                    var rooms = await _userRoomRepo.GetQueryable().AsNoTracking()
+                        .Where(room => (room.UserId == currentUserId && otherUserIds.Contains(room.SwapperId))
+                            || (room.SwapperId == currentUserId && otherUserIds.Contains(room.UserId)))
+                        .Select(room => new { room.UserId, room.SwapperId, room.Room.RoomName })
+                        .ToListAsync();
+                    var roomsByUser = rooms.ToDictionary(room => room.UserId == currentUserId ? room.SwapperId : room.UserId,
+                        room => room.RoomName);
+
+                    foreach (var item in candidateItems)
+                    {
+                        if (item.Status != SwapProceedingStatus.Closed.ToString()
+                            && item.Status != SwapProceedingStatus.Swapped.ToString()
+                            && (item.visitorUserId == currentUserId || item.swapperUserId == currentUserId)
+                            && roomsByUser.TryGetValue(item.visitorUserId == currentUserId ? item.swapperUserId : item.visitorUserId, out var roomName))
+                            item.RoomName = roomName;
+                    }
+                }
 
 
                 var data = new PaginatedResult<SwapProceedingResp>
@@ -1143,6 +1289,13 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                     response.StatusCode = 400;
                     return response;
                 }
+                if (Items.SwapListStatus == SwapListingStatus.Closed.ToString())
+                {
+                    response.DisplayMessage = "Error";
+                    response.ErrorMessages = new List<string> { "This listing is closed and no longer available" };
+                    response.StatusCode = StatusCodes.Status400BadRequest;
+                    return response;
+                }
                 var checkExistingSwapping = await _swappingProceedingRepo
       .GetQueryable()
       .Include(u => u.List)
@@ -1229,34 +1382,38 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
         }
         public async Task<ResponseDto<string>> CloseSwap(string userId, string swapId)
         {
-
             var response = new ResponseDto<string>();
             try
             {
-                var checkExistingSwapping = await _swappingProceedingRepo.GetByIdAsync(swapId);
+                var checkExistingSwapping = await _swappingProceedingRepo.GetQueryable()
+                    .Include(proceeding => proceeding.List)
+                    .FirstOrDefaultAsync(proceeding => proceeding.Id == swapId);
                 if (checkExistingSwapping == null)
                 {
-                    response.StatusCode = 400;
+                    response.StatusCode = StatusCodes.Status404NotFound;
                     response.DisplayMessage = "Error";
-                    response.ErrorMessages = new List<string>() { "User currently do not have a swapping proceeding ongoing, pls create before closing" };
+                    response.ErrorMessages = new List<string> { "Swap proceeding not found" };
                     return response;
                 }
-                var Items = await _listingItemRepo.GetByIdAsync(checkExistingSwapping.ListId);
-                if (Items == null)
+                if (checkExistingSwapping.Userid != userId && checkExistingSwapping.List?.UserId != userId)
                 {
+                    response.StatusCode = StatusCodes.Status403Forbidden;
                     response.DisplayMessage = "Error";
-                    response.ErrorMessages = new List<string>() { "Invalid listed item" };
-                    response.StatusCode = 400;
+                    response.ErrorMessages = new List<string> { "You are not a participant in this swap proceeding" };
                     return response;
                 }
-               
+                if (checkExistingSwapping.Status == SwapProceedingStatus.Closed.ToString())
+                {
+                    response.StatusCode = StatusCodes.Status200OK;
+                    response.DisplayMessage = "Success";
+                    response.Result = "Swap proceeding is already closed";
+                    return response;
+                }
 
                 checkExistingSwapping.Status = SwapProceedingStatus.Closed.ToString();
-                Items.SwapListStatus = SwapProceedingStatus.Closed.ToString();
                 _swappingProceedingRepo.Update(checkExistingSwapping);
-                _listingItemRepo.Update(Items);
-                await _listingItemRepo.SaveChanges();
-                response.Result = "Item swapping closed";
+                await _swappingProceedingRepo.SaveChanges();
+                response.Result = "Swap proceeding closed";
                 response.StatusCode = 200;
                 response.DisplayMessage = "Success";
                 return response;
@@ -1316,51 +1473,43 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
         }
         public async Task<ResponseDto<UserDashboardCard>> GetUserDashboardCard(string userId)
         {
-
             var response = new ResponseDto<UserDashboardCard>();
             try
             {
-                var result = new UserDashboardCard();
-                var Items = await _listingItemRepo.GetQueryable().
-                    Where(u=>u.UserId == userId).CountAsync();
-                result.ListedCount = Items;
+                var listedCount = await _listingItemRepo.GetQueryable()
+                    .CountAsync(item => item.UserId == userId);
+                var ongoingCount = await _swappingProceedingRepo.GetQueryable()
+                    .CountAsync(proceeding => (proceeding.Userid == userId || proceeding.List.UserId == userId)
+                        && proceeding.Status != SwapProceedingStatus.Swapped.ToString()
+                        && proceeding.Status != SwapProceedingStatus.Closed.ToString());
+                var pendingConfirmationCount = await _swappingProceedingRepo.GetQueryable()
+                    .CountAsync(proceeding => (proceeding.Userid == userId || proceeding.List.UserId == userId)
+                        && proceeding.Status == SwapProceedingStatus.AwaitingConfirmation.ToString());
+                var completedCount = await _swappingProceedingRepo.GetQueryable()
+                    .CountAsync(proceeding => (proceeding.Userid == userId || proceeding.List.UserId == userId)
+                        && proceeding.Status == SwapProceedingStatus.Swapped.ToString());
 
-               
-                var checkExistingSwapping = await _swappingProceedingRepo.GetQueryable()
-                    .Include(u => u.List)
-                    .Where(u => u.Userid == userId || u.List.UserId == userId).ToListAsync();
-                if (!checkExistingSwapping.Any())
+                response.Result = new UserDashboardCard
                 {
-                    result.CompletedCount = 0;
-                    result.PendingConfirmationCount = 0;
-                    result.OngoingCount = 0;
-                    response.StatusCode = 200;
-                    response.DisplayMessage = "Success";
-                    response.Result = result;
-                    return response;
-                }
-                result.OngoingCount = checkExistingSwapping
-                    .Count(u => u.Status == SwapProceedingStatus.Negotiation.ToString());
-                result.PendingConfirmationCount = checkExistingSwapping
-                    .Count(u => u.Status == SwapProceedingStatus.AwaitingConfirmation.ToString());
-                result.CompletedCount = checkExistingSwapping
-                    .Count(u => u.Status == SwapProceedingStatus.Swapped.ToString());
-               
-              
-                response.Result = result;
-                response.StatusCode = 200;
+                    ListedCount = listedCount,
+                    OngoingCount = ongoingCount,
+                    PendingConfirmationCount = pendingConfirmationCount,
+                    CompletedCount = completedCount
+                };
+                response.StatusCode = StatusCodes.Status200OK;
                 response.DisplayMessage = "Success";
                 return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.Message, ex);
-                response.ErrorMessages = new List<string>() { "Error in geting user dashboard card stats" };
-                response.StatusCode = 500;
+                _logger.LogError(ex, "Error getting dashboard card for user {UserId}", userId);
+                response.ErrorMessages = new List<string> { "Error in getting dashboard card" };
+                response.StatusCode = StatusCodes.Status500InternalServerError;
                 response.DisplayMessage = "Error";
                 return response;
             }
         }
+
         public async Task<ResponseDto<string>> AdminReview(string userId, string listId, ListingReiviewStage review, string? rejectionNote = null)
         {
 

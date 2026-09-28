@@ -122,7 +122,7 @@ namespace SwapShop.Api.Controllers
         {
             var req = new AdminSearchpaginatedListingQuery
             {
-                UserId = userId,
+                UserId = User.Identity?.IsAuthenticated == true ? User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value : null,
                 searhParam = searhParam,
                 categoryId = categoryId,
                 pageNumber = pageNumber,

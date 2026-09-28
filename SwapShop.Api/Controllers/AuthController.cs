@@ -30,6 +30,10 @@ namespace SwapShop.Api.Controllers
         public Task<IActionResult> ConfirmEmail(ConfirmEmailCommand req)
             => MediatorResponseHelper.Handle(_mediator, req, this);
 
+        [HttpPost("user/resend-confirmation-email")]
+        public Task<IActionResult> ResendConfirmationEmail(ResendConfirmationEmailCommand req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
         [HttpPost("user/register")]
         public Task<IActionResult> RegisterUser(RegisterCommand req)
             => MediatorResponseHelper.Handle(_mediator, req, this);
@@ -62,6 +66,10 @@ namespace SwapShop.Api.Controllers
 
         [HttpPost("user/forget_password")]
         public Task<IActionResult> ForgetPassword(ForgetPasswordCommand req)
+            => MediatorResponseHelper.Handle(_mediator, req, this);
+
+        [HttpPost("user/resend-forget-password-email")]
+        public Task<IActionResult> ResendForgetPasswordEmail(ForgetPasswordCommand req)
             => MediatorResponseHelper.Handle(_mediator, req, this);
 
         [HttpPost("user/reset_password")]

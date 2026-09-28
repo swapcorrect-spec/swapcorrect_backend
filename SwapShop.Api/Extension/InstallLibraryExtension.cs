@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using SwapShop.Api.Extension;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Reflection;
 
 namespace SwapSwap.Api.MappingProfile
 {
@@ -27,6 +29,9 @@ namespace SwapSwap.Api.MappingProfile
             });
             services.AddSwaggerGen(option =>
             {
+                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                option.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile));
+                option.OperationFilter<SwaggerDocumentationOperationFilter>();
                 option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     In = ParameterLocation.Header,

@@ -22,7 +22,7 @@ namespace SwapShop.Application.QueryHandler.ListingItem
         public async Task<ResponseDto<PaginatedResult<SwapProceedingResp>>> Handle(SearchPaginatedListingSwapQuery request, CancellationToken cancellationToken)
         {
             return await _listItemService.SearchpaginatedListingSwap(request.ListingUserId, request.SearhParam, request.SwapListingStatus,
-                request.ListingDate, request.PageNumber, request.PerPageSize);  
+                request.ListingDate, request.PageNumber, request.PerPageSize, request.CurrentUserId);
         }
     }
 }

@@ -18,6 +18,7 @@ namespace SwapShop.Domain.Enum
         Published,
         Negotiation,
         Swapped,
+        Closed,
         All,
        
     }
@@ -26,6 +27,7 @@ namespace SwapShop.Domain.Enum
         Published,
         Negotiation,
         Swapped,
+        Closed,
         All
     }
     public enum AnalyticsMetricFilter

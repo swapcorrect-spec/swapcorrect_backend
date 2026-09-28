@@ -21,11 +21,12 @@ namespace SwapShop.Domain.OtherService.Interface
             string? location, decimal lowestRange, decimal highestRange, ListingDateFilter listingDate, int pageNumber, int perpageSize);
         Task<ResponseDto<string>> SwitchSwapStatus(string userId, string listId, SwapProceedingStatus swapProceeding);
         Task<ResponseDto<string>> RemoveSingleListing(string? userId, string listingId);
+        Task<ResponseDto<string>> CloseListing(string userId, string listingId);
         Task<ResponseDto<UserDashboardCard>> GetUserDashboardCard(string userId);
         Task<ResponseDto<string>> StartSwap(string userId, string listId);
         Task<ResponseDto<SwapProceedingResp>> SingleListingSwapProceed(string swapProceedId);
         Task<ResponseDto<PaginatedResult<SwapProceedingResp>>> SearchpaginatedListingSwap(string? listinguserId, string? searhParam,
-            SwapListingEnumStatus swapListingStatus, ListingDateFilter listingDate, int pageNumber, int perpageSize);
+            SwapListingEnumStatus swapListingStatus, ListingDateFilter listingDate, int pageNumber, int perpageSize, string? currentUserId);
         Task<ResponseDto<PaginatedResult<ListedItemResp>>> AdminSearchpaginatedListing(string? userId, string? listinguserId, string? searhParam,
            string? categoryId, string? location, SwapListingStatus listingStatus, ListingReiviewStage reviewStage, decimal lowestRange, decimal highestRange, ListingDateFilter listingDate, int pageNumber, int perpageSize);
         Task<ResponseDto<string>> FlagContent(string contentId, FlagContentType contentType, bool isFlagged);

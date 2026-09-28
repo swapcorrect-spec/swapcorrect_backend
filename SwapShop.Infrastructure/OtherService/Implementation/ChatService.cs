@@ -10,6 +10,9 @@ using SwapShop.Domain.Enitities;
 using SwapShop.Domain.Enum;
 using SwapShop.Domain.OtherService.Interface;
 using SwapShop.Domain.Repository.Interface;
+using SwapShop.Domain.Dtos.Request.Mailing;
+using SwapShop.Infrastructure.Helper;
+using System.Net;
 
 namespace SwapShop.Infrastructure.OtherService.Implementation
 {
@@ -20,8 +23,9 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
         private readonly ISwapShopGenericRepo<Room> _roomRepo;
         private readonly ISwapShopGenericRepo<ReadMassageCount> _readMassageCountRepo;
         private readonly ISwapShopGenericRepo<UserRoom> _userRoomRepo;
+        private readonly IEmailServices _emailServices;
         private readonly ILogger<ChatService> _logger;
-        public ChatService(ISwapShopGenericRepo<UserRoom> userRoomRepo, ISwapShopGenericRepo<ReadMassageCount> readMassageCountRepo, ISwapShopGenericRepo<Room> roomRepo, ISwapShopGenericRepo<RoomMessages> roomMessagesRepo, ILogger<ChatService> logger, ISwapShopGenericRepo<SwappingProceeding> swappingProceedingRepo)
+        public ChatService(ISwapShopGenericRepo<UserRoom> userRoomRepo, ISwapShopGenericRepo<ReadMassageCount> readMassageCountRepo, ISwapShopGenericRepo<Room> roomRepo, ISwapShopGenericRepo<RoomMessages> roomMessagesRepo, ILogger<ChatService> logger, ISwapShopGenericRepo<SwappingProceeding> swappingProceedingRepo, IEmailServices emailServices)
         {
             _userRoomRepo = userRoomRepo;
             _readMassageCountRepo = readMassageCountRepo;
@@ -29,6 +33,7 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
             _roomMessagesRepo = roomMessagesRepo;
             _logger = logger;
             _swappingProceedingRepo = swappingProceedingRepo;
+            _emailServices = emailServices;
         }
 
         public async Task<ResponseDto<RoomMessages>> AddMessage(string userId, string roomName, string Message, string msgType)
@@ -55,6 +60,8 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
 
                 await _roomMessagesRepo.Add(msgRequest);
                 await _roomMessagesRepo.SaveChanges();
+
+                await NotifyOfflineRecipient(room.Id, userId, Message);
                 response.StatusCode = StatusCodes.Status200OK;
                 response.DisplayMessage = "Success";
                 response.Result = msgRequest;
@@ -69,6 +76,40 @@ namespace SwapShop.Infrastructure.OtherService.Implementation
                 return response;
             }
 
+        }
+
+        private async Task NotifyOfflineRecipient(string roomId, string senderId, string message)
+        {
+            try
+            {
+                var userRoom = await _userRoomRepo.GetQueryable()
+                    .Include(room => room.User)
+                    .Include(room => room.Swapper)
+                    .FirstOrDefaultAsync(room => room.Room.Id == roomId);
+
+                if (userRoom == null)
+                    return;
+
+                var recipient = userRoom.UserId == senderId ? userRoom.Swapper : userRoom.User;
+                if (recipient == null || recipient.IsOnline || string.IsNullOrWhiteSpace(recipient.Email))
+                    return;
+
+                var safeMessage = WebUtility.HtmlEncode(message);
+                var body = EmailTemplate.Build(
+                    title: "New message waiting for you",
+                    greetingName: recipient.FirstName,
+                    bodyHtml: $"<p style=\"margin:0 0 14px 0;\">You received a new message while you were offline.</p>"
+                              + $"<p style=\"margin:0;\"><strong>Message:</strong> {safeMessage}</p>");
+
+                await _emailServices.SendEmailAsync(new Message(
+                    new[] { recipient.Email },
+                    "You have a new SwapCorrect message",
+                    body));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to notify offline chat recipient for room {RoomId}", roomId);
+            }
         }
 
         public async Task<ResponseDto<int>> GetUnreadMessageCount(string userId)

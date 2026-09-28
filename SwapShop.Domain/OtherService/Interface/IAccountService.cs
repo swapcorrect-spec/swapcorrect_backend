@@ -17,6 +17,7 @@ namespace SwapShop.Domain.OtherService.Interface
         Task<ResponseDto<string>> ChangeOnlineStatus(string userId, bool IsOnline);
         Task<ResponseDto<UserInfo>> UserInfoAsync(string userId);
         Task<ResponseDto<string>> ForgotPassword(string CompanyEmail);
+        Task<ResponseDto<string>> ResendConfirmationEmail(string email);
         Task<ResponseDto<string>> ConfirmEmailAsync(int token, string email);
         Task<ResponseDto<string>> ResetPassword(ResetPassword resetPassword);
         Task<ResponseDto<string>> SuspendUserAsync(string useremail);

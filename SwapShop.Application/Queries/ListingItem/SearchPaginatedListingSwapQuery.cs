@@ -12,7 +12,7 @@ namespace SwapShop.Application.Queries.ListingItem
 {
     public class SearchPaginatedListingSwapQuery : IRequest<ResponseDto<PaginatedResult<SwapProceedingResp>>>
     {
-      
+        public string? CurrentUserId { get; set; }
         public string? ListingUserId { get; set; }
         public string? SearhParam { get; set; }
         public SwapListingEnumStatus SwapListingStatus { get; set; }

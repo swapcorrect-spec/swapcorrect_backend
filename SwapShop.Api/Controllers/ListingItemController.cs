@@ -7,6 +7,7 @@ using SwapShop.Api.ResponsHandler;
 using SwapShop.Application.Commands.ListItem;
 using SwapShop.Application.Queries.ListingItem;
 using SwapShop.Domain.Dtos.Request.ListingItem;
+using SwapShop.Domain.Dtos.Response;
 using SwapShop.Domain.Enum;
 using System.IdentityModel.Tokens.Jwt;
 
@@ -50,9 +51,14 @@ namespace SwapShop.Api.Controllers
 
             return MediatorResponseHelper.Handle(_mediator, mapData, this);
         }
+        /// <summary>Closes only the swap proceeding; the listing remains independently available.</summary>
+        /// <param name="swapId">The swap proceeding ID, not the listing ID.</param>
         [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
         [HttpPost("close/swap_now")]
-        public Task<IActionResult> CloseSwaping(string swapId)
+        [ProducesResponseType(typeof(ResponseDto<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ResponseDto<string>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ResponseDto<string>), StatusCodes.Status404NotFound)]
+        public Task<IActionResult> CloseSwaping([FromQuery] string swapId)
         {
 
             var userid = User.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
@@ -70,7 +76,7 @@ namespace SwapShop.Api.Controllers
         {
             var req = new GetItemByRaterHotPickQuery
             {
-                UserId = userId,
+                UserId = User.Identity?.IsAuthenticated == true ? User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value : null,
                 limit = limit
             };
 
@@ -82,7 +88,7 @@ namespace SwapShop.Api.Controllers
         {
             var req = new GetSingleListingQuery
             {
-                UserId = userId,
+                UserId = User.Identity?.IsAuthenticated == true ? User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value : null,
                 ListingId = listingId
             };
 
@@ -103,7 +109,7 @@ namespace SwapShop.Api.Controllers
         {
             var req = new GetItemByUserPreviousWantItemQuery
             {
-                UserId = userId,
+                UserId = User.Identity?.IsAuthenticated == true ? User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value : null,
                 limit = limit
             };
 
@@ -114,7 +120,7 @@ namespace SwapShop.Api.Controllers
         {
             var req = new GetItemElectronicsQuery
             {
-                UserId = userId,
+                UserId = User.Identity?.IsAuthenticated == true ? User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value : null,
                 limit = limit
             };
 
@@ -126,7 +132,7 @@ namespace SwapShop.Api.Controllers
         {
             var req = new SearchpaginatedListingQuery
             {
-                UserId = userId,
+                UserId = User.Identity?.IsAuthenticated == true ? User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value : null,
                 searhParam = searhParam,
                 categoryId = categoryId,
                 pageNumber = pageNumber,
@@ -215,13 +221,27 @@ namespace SwapShop.Api.Controllers
         }
 
         [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        [HttpPut("close-listing")]
+        public Task<IActionResult> CloseListing(string listingId)
+        {
+            var userId = User.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+            var command = new CloseListingCommand
+            {
+                UserId = userId,
+                ListingId = listingId
+            };
+
+            return MediatorResponseHelper.Handle(_mediator, command, this);
+        }
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
         [HttpGet("paginated/search_swap")]
         public Task<IActionResult> SearchPaginatedListingSwap(string? listingUserId, string? searhParam, SwapListingEnumStatus swapListingStatus, 
             ListingDateFilter listingDate, int pageNumber, int perpageSize)
         {
             var req = new SearchPaginatedListingSwapQuery
             {
-               
+                CurrentUserId = User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value,
                 ListingUserId = listingUserId,
                 SearhParam = searhParam,
                 SwapListingStatus = swapListingStatus,
